@@ -8,12 +8,9 @@ constexpr uint8_t EN_PIN = 5;
 
 constexpr long MOTOR_FULL_STEPS_PER_REV = 200;
 constexpr float GEAR_RATIO = 13.73f;
-// Wenn "turn 1" etwa doppelt so weit faehrt, ist der Treiber oft auf 1/8 statt
-// 1/16 Microstepping eingestellt.
 constexpr uint8_t MICROSTEPS = 8;
 
-constexpr float OUTPUT_STEPS_PER_REV =
-    MOTOR_FULL_STEPS_PER_REV * GEAR_RATIO * MICROSTEPS;
+constexpr float OUTPUT_STEPS_PER_REV = MOTOR_FULL_STEPS_PER_REV * GEAR_RATIO * MICROSTEPS;
 constexpr float DEFAULT_OUTPUT_RPM = 5.0f;
 constexpr float DEFAULT_OUTPUT_ACCEL_RPM_PER_S = 20.0f;
 constexpr long DEFAULT_SWEEP_DEGREES = 90;

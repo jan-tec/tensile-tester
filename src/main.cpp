@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <AccelStepper.h>
 #include <HX711.h>
+#include <Preferences.h>
 #include <WebServer.h>
 #include <WiFi.h>
 
@@ -20,7 +21,9 @@ constexpr float OUTPUT_STEPS_PER_REV =
     MOTOR_FULL_STEPS_PER_REV * GEAR_RATIO * MICROSTEPS;
 constexpr float DEFAULT_OUTPUT_RPM = 5.0f;
 constexpr float DEFAULT_OUTPUT_ACCEL_RPM_PER_S = 20.0f;
-constexpr float DEFAULT_MOVE_MM_PER_MIN = 10.0f;
+constexpr float DEFAULT_MOVE_MM_PER_MIN = 12.0f;
+constexpr float MIN_MOVE_MM_PER_MIN = 0.5f;
+constexpr float MAX_MOVE_MM_PER_MIN = 60.0f;
 constexpr float SPINDLE_PITCH_MM_PER_REV = 2.0f;
 constexpr unsigned long STATUS_INTERVAL_MS = 500;
 constexpr unsigned long HX711_SAMPLE_INTERVAL_MS = 100;
@@ -28,12 +31,17 @@ constexpr float GRAVITY = 9.80665f;
 constexpr float FORCE_FILTER_ALPHA = 0.18f;
 constexpr uint16_t MOTOR_TASK_DELAY_US = 200;
 constexpr uint8_t MOTOR_TASK_YIELD_INTERVAL = 20;
+constexpr float JOG_TRAVEL_MM = 1000.0f;
 
 constexpr char WIFI_SSID[] = "ESP32-Testmaschine";
 constexpr char WIFI_PASSWORD[] = "testmaschine";
 
-// Diesen Faktor spaeter mit bekanntem Gewicht kalibrieren.
-constexpr float LOADCELL_CALIBRATION_FACTOR = 1.0f;
+constexpr char PREFERENCES_NAMESPACE[] = "testmachine";
+constexpr char PREF_CALIBRATION_VALID[] = "lc_valid";
+constexpr char PREF_CALIBRATION_FACTOR[] = "lc_factor";
+constexpr float DEFAULT_LOADCELL_CALIBRATION_FACTOR = 1.0f;
+constexpr uint8_t CALIBRATION_CAPTURE_SAMPLES = 10;
+constexpr unsigned long CALIBRATION_SETTLE_MS = 1200;
 
 const char INDEX_HTML[] PROGMEM = R"HTML(
 <!DOCTYPE html>
@@ -130,6 +138,37 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 10px;
     }
+    .jog {
+      display: grid;
+      gap: 10px;
+      justify-items: center;
+      margin-bottom: 14px;
+    }
+    .jog-mid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 72px));
+      gap: 10px;
+      align-items: center;
+    }
+    .arrow {
+      width: 72px;
+      height: 72px;
+      border-radius: 18px;
+      font-size: 2rem;
+      line-height: 1;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+      touch-action: manipulation;
+    }
+    .speed-inline {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: end;
+    }
     form {
       display: grid;
       gap: 10px;
@@ -186,14 +225,33 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
 </head>
 <body>
   <div class="wrap">
-    <h1>Pruefmaschinen-Steuerung</h1>
-    <p class="sub">Zwei synchron laufende Motoren auf gemeinsamen STEP/DIR/EN-Signalen, Spindelhub 2 mm/Umdrehung und Live-Kraftmessung ueber HX711.</p>
+    <h1>JanTec Zugversuch Steuerung</h1>
 
     <div class="grid">
       <section class="card plot-card">
         <h2>Kraftverlauf</h2>
         <canvas id="forceChart"></canvas>
-        <p class="note">Live-Plot der gemessenen Kraft mit 10 Samples pro Sekunde. Nullpunkt mit "Tare Kraft" setzen, Kalibrierfaktor spaeter exakt einmessen.</p>
+        <p class="note">Live-Plot der gemessenen Kraft mit 10 Samples pro Sekunde. </p>
+      </section>
+
+      <section class="card">
+        <h2>Steuerung</h2>
+        <div class="jog">
+          <button class="arrow success jog-btn" data-jog="up" type="button">&#9650;</button>
+          <div class="jog-mid">
+            <div></div>
+            <button class="danger" data-cmd="stop" type="button">Stop</button>
+            <div></div>
+          </div>
+          <button class="arrow secondary jog-btn" data-jog="down" type="button">&#9660;</button>
+        </div>
+        <form data-prefix="feed" class="speed-form">
+          <div class="speed-inline">
+            <input id="feedInput" name="value" type="number" step="0.1" min="0.5" max="60" placeholder="Vorschub mm/min">
+            <button type="submit">Setzen</button>
+          </div>
+        </form>
+        <p class="note">Gedrückt halten für kontinuierliche Bewegung. 1 Umdrehung der Spindel = 2 mm Weg.</p>
       </section>
 
       <section class="card">
@@ -212,10 +270,10 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
       <section class="card">
         <h2>Achse</h2>
         <div class="btnrow">
-          <button class="success" data-cmd="en">Enable</button>
-          <button class="secondary" data-cmd="off">Disable</button>
-          <button data-cmd="zero">Zero Position</button>
-          <button class="secondary" data-cmd="tare">Tare Kraft</button>
+          <button class="success" data-cmd="en">Treiber EN</button>
+          <button class="secondary" data-cmd="off">Treiber DIS</button>
+          <button data-cmd="zero">Null Position</button>
+          <button class="secondary" data-cmd="tare">Kraft Tarieren</button>
           <button class="danger" data-cmd="stop">Stop</button>
           <button class="secondary" data-cmd="force">Kraft loggen</button>
         </div>
@@ -223,18 +281,11 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
 
       <section class="card">
         <h2>Geschwindigkeit</h2>
-        <form data-prefix="rpm">
-          <input name="value" type="number" step="0.1" min="0.1" placeholder="RPM Ausgangswelle">
-          <button type="submit">RPM setzen</button>
-        </form>
         <form data-prefix="acc">
           <input name="value" type="number" step="0.1" min="0.1" placeholder="Beschleunigung in U/min/s">
           <button type="submit">ACC setzen</button>
         </form>
-        <form data-prefix="feed">
-          <input name="value" type="number" step="0.1" min="0.1" placeholder="Vorschub mm/min">
-          <button type="submit">Vorschub setzen</button>
-        </form>
+        <p class="note">Empfohlener Arbeitsbereich aktuell: ca. 0.5 bis 60 mm/min. Das entspricht bei der 2-mm-Spindel 0.25 bis 30 U/min an der Getriebe-Ausgangswelle.</p>
       </section>
 
       <section class="card">
@@ -259,16 +310,29 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
         <p class="note">Automatische Testmodi folgen in der naechsten Iteration. Die Struktur dafuer ist jetzt vorbereitet.</p>
       </section>
 
+      <section class="card plot-card">
+        <h2>Kalibrierung Waegezelle</h2>
+        <div class="btnrow">
+          <button id="calibrationZeroBtn" class="secondary" type="button">1. Unbelastet bestaetigen</button>
+          <button id="calibrationMeasureBtn" class="success" type="button">2. Gewicht messen</button>
+        </div>
+        <form id="calibrationForm">
+          <input id="calibrationMassInput" name="value" type="number" step="0.1" min="0.1" placeholder="Bekanntes Gewicht in Gramm">
+        </form>
+        <p class="note">Ablauf: Waegezelle entlasten und Schritt 1 ausfuehren. Danach bekanntes Gewicht einhaengen, Grammwert eintragen und Schritt 2 ausfuehren. Der Kalibrierfaktor wird im ESP gespeichert und beim naechsten Start automatisch geladen.</p>
+        <p class="note" id="calibrationInfo">Kalibrierstatus wird geladen...</p>
+      </section>
+
     </div>
 
     <div id="message"></div>
   </div>
 
-  <script>
+  <script> <!-- Plotting (Kraft-Graph) -->
     const sampleRateHz = 10;
     const maxSamples = 600;
-    const fixedYAxisMin = 0;
-    const fixedYAxisMax = 100;
+    const fixedYAxisMin = -50;
+    const fixedYAxisMax = 400;
     const messageEl = document.getElementById("message");
     const chart = document.getElementById("forceChart");
     const ctx = chart.getContext("2d");
@@ -291,7 +355,10 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
       forceValue: document.getElementById("forceValue"),
       positionValue: document.getElementById("positionValue"),
       feedValue: document.getElementById("feedValue"),
-      wifiInfo: document.getElementById("wifiInfo")
+      wifiInfo: document.getElementById("wifiInfo"),
+      feedInput: document.getElementById("feedInput"),
+      calibrationInfo: document.getElementById("calibrationInfo"),
+      calibrationMassInput: document.getElementById("calibrationMassInput")
     };
 
     function setMessage(text, isError = false) {
@@ -322,7 +389,7 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
       const maxForce = fixedYAxisMax;
       const span = Math.max(maxForce - minForce, 1);
 
-      ctx.strokeStyle = "#d9622b";
+      ctx.strokeStyle = "#2b8bd9";
       ctx.lineWidth = 3;
       ctx.beginPath();
       forceHistory.forEach((value, index) => {
@@ -367,6 +434,12 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
         statusFields.positionValue.textContent = Number(data.positionMm).toFixed(3) + " mm";
         statusFields.feedValue.textContent = Number(data.feedMmPerMin).toFixed(2) + " mm/min";
         statusFields.wifiInfo.textContent = data.network;
+        statusFields.calibrationInfo.textContent = data.calibrationValid
+          ? "Kalibrierung aktiv. Faktor: " + Number(data.calibrationFactor).toFixed(6)
+          : "Noch keine gueltige Kalibrierung gespeichert.";
+        if (document.activeElement !== statusFields.feedInput) {
+          statusFields.feedInput.value = Number(data.feedMmPerMin).toFixed(2);
+        }
 
         forceHistory.push(Number(data.forceNewton));
         while (forceHistory.length > maxSamples) {
@@ -394,6 +467,52 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
       });
     });
 
+    function bindJogButton(button) {
+      const direction = button.dataset.jog;
+      const startCommand = direction === "up" ? "jog up" : "jog down";
+      let active = false;
+
+      const startJog = (event) => {
+        event.preventDefault();
+        if (active) {
+          return;
+        }
+        active = true;
+        sendCommand(startCommand);
+      };
+
+      const stopJog = (event) => {
+        if (event) {
+          event.preventDefault();
+        }
+        if (!active) {
+          return;
+        }
+        active = false;
+        sendCommand("stop");
+      };
+
+      button.addEventListener("pointerdown", startJog);
+      button.addEventListener("pointerup", stopJog);
+      button.addEventListener("pointerleave", stopJog);
+      button.addEventListener("pointercancel", stopJog);
+    }
+
+    document.querySelectorAll(".jog-btn").forEach(bindJogButton);
+
+    document.getElementById("calibrationZeroBtn").addEventListener("click", () => {
+      sendCommand("cal_zero");
+    });
+
+    document.getElementById("calibrationMeasureBtn").addEventListener("click", () => {
+      const grams = statusFields.calibrationMassInput.value.trim();
+      if (!grams) {
+        setMessage("Bitte zuerst das bekannte Gewicht in Gramm eingeben.", true);
+        return;
+      }
+      sendCommand("cal_apply " + grams);
+    });
+
     window.addEventListener("resize", resizeCanvas);
     resizeCanvas();
     refreshStatus();
@@ -411,6 +530,7 @@ enum class TestMode {
 
 AccelStepper stepper(AccelStepper::DRIVER, STEP_PIN, DIR_PIN);
 HX711 scale;
+Preferences preferences;
 WebServer server(80);
 TaskHandle_t motorTaskHandle = nullptr;
 portMUX_TYPE motionMux = portMUX_INITIALIZER_UNLOCKED;
@@ -422,10 +542,53 @@ unsigned long lastStatusMs = 0;
 unsigned long lastHx711SampleMs = 0;
 float currentForceNewton = 0.0f;
 bool loadcellReady = false;
+bool calibrationValid = false;
+float loadcellCalibrationFactor = DEFAULT_LOADCELL_CALIBRATION_FACTOR;
+bool calibrationZeroCaptured = false;
 TestMode activeTestMode = TestMode::Manual;
 String serialBuffer;
 
 bool executeCommand(String command, String &response);
+
+void loadCalibrationFromPreferences() {
+  preferences.begin(PREFERENCES_NAMESPACE, true);
+  calibrationValid = preferences.getBool(PREF_CALIBRATION_VALID, false);
+  loadcellCalibrationFactor = preferences.getFloat(
+      PREF_CALIBRATION_FACTOR, DEFAULT_LOADCELL_CALIBRATION_FACTOR);
+  preferences.end();
+
+  if (!calibrationValid || loadcellCalibrationFactor == 0.0f) {
+    calibrationValid = false;
+    loadcellCalibrationFactor = DEFAULT_LOADCELL_CALIBRATION_FACTOR;
+  }
+}
+
+void saveCalibrationToPreferences(float factor) {
+  preferences.begin(PREFERENCES_NAMESPACE, false);
+  preferences.putFloat(PREF_CALIBRATION_FACTOR, factor);
+  preferences.putBool(PREF_CALIBRATION_VALID, true);
+  preferences.end();
+
+  loadcellCalibrationFactor = factor;
+  calibrationValid = true;
+}
+
+bool readAverageRawValue(uint8_t sampleCount, long &averageRaw) {
+  if (!loadcellReady) {
+    return false;
+  }
+
+  int64_t sum = 0;
+  for (uint8_t i = 0; i < sampleCount; ++i) {
+    if (!scale.wait_ready_timeout(1500)) {
+      return false;
+    }
+    sum += scale.read();
+  }
+
+  averageRaw = static_cast<long>(sum / sampleCount);
+  return true;
+}
 
 float outputRpmToStepsPerSecond(float rpm) {
   return (rpm * OUTPUT_STEPS_PER_REV) / 60.0f;
@@ -469,6 +632,16 @@ float rpmToFeedMmPerMin(float rpm) {
 
 float feedMmPerMinToRpm(float mmPerMin) {
   return mmPerMin / SPINDLE_PITCH_MM_PER_REV;
+}
+
+float clampFeedMmPerMin(float mmPerMin) {
+  if (mmPerMin < MIN_MOVE_MM_PER_MIN) {
+    return MIN_MOVE_MM_PER_MIN;
+  }
+  if (mmPerMin > MAX_MOVE_MM_PER_MIN) {
+    return MAX_MOVE_MM_PER_MIN;
+  }
+  return mmPerMin;
 }
 
 const __FlashStringHelper *testModeLabel() {
@@ -616,6 +789,10 @@ String statusJson() {
   json += String(currentStepperPosition());
   json += ",\"forceNewton\":";
   json += String(currentForceNewton, 2);
+  json += ",\"calibrationValid\":";
+  json += calibrationValid ? "true" : "false";
+  json += ",\"calibrationFactor\":";
+  json += String(loadcellCalibrationFactor, 6);
   json += ",\"testMode\":\"";
   json += String(testModeLabel());
   json += "\"";
@@ -646,6 +823,8 @@ bool executeCommand(String command, String &response) {
     return false;
   }
 
+  float value = 0.0f;
+
   if (command == "en") {
     enableDriver();
     response = "Beide Treiber aktiviert.";
@@ -672,6 +851,60 @@ bool executeCommand(String command, String &response) {
     return loadcellReady;
   }
 
+  if (command == "cal_zero") {
+    if (!loadcellReady) {
+      response = "HX711 nicht bereit.";
+      return false;
+    }
+
+    scale.set_scale(loadcellCalibrationFactor);
+    scale.tare(1);
+    calibrationZeroCaptured = true;
+    currentForceNewton = 0.0f;
+    response = "Nullpunkt erfasst. Jetzt bekanntes Gewicht anhaengen, Grammwert eingeben und Schritt 2 ausfuehren.";
+    return true;
+  }
+
+  if (parseValueAfterCommand(command, "cal_apply", value)) {
+    if (!loadcellReady) {
+      response = "HX711 nicht bereit.";
+      return false;
+    }
+    if (!calibrationZeroCaptured) {
+      response = "Bitte zuerst Schritt 1 mit unbelasteter Waegezelle ausfuehren.";
+      return false;
+    }
+    if (value <= 0.0f) {
+      response = "Kalibriergewicht muss groesser als 0 g sein.";
+      return false;
+    }
+
+    delay(CALIBRATION_SETTLE_MS);
+
+    long averageRaw = 0;
+    if (!readAverageRawValue(CALIBRATION_CAPTURE_SAMPLES, averageRaw)) {
+      response = "Kalibrierwert konnte nicht gelesen werden.";
+      return false;
+    }
+
+    const long offset = scale.get_offset();
+    const float newFactor =
+        static_cast<float>(averageRaw - offset) / value;
+
+    if (newFactor == 0.0f) {
+      response = "Kalibrierung fehlgeschlagen: Faktor ist 0.";
+      return false;
+    }
+
+    saveCalibrationToPreferences(newFactor);
+    scale.set_scale(loadcellCalibrationFactor);
+    currentForceNewton = 0.0f;
+    calibrationZeroCaptured = false;
+    response = "Kalibrierung gespeichert. Neuer Faktor: " +
+               String(loadcellCalibrationFactor, 6);
+    return true;
+  }
+
   if (command == "force") {
     response = "Kraft aktuell: " + String(currentForceNewton, 2) + " N.";
     return true;
@@ -691,8 +924,6 @@ bool executeCommand(String command, String &response) {
     response = "Position im Serial Monitor ausgegeben.";
     return true;
   }
-
-  float value = 0.0f;
 
   if (parseValueAfterCommand(command, "rpm", value)) {
     if (value <= 0.0f) {
@@ -726,9 +957,22 @@ bool executeCommand(String command, String &response) {
       return false;
     }
 
-    configuredOutputRpm = feedMmPerMinToRpm(value);
+    const float clampedFeed = clampFeedMmPerMin(value);
+    configuredOutputRpm = feedMmPerMinToRpm(clampedFeed);
     applyMotionSettings();
-    response = "Vorschub gesetzt auf " + String(value, 2) + " mm/min.";
+    response = "Vorschub gesetzt auf " + String(clampedFeed, 2) + " mm/min.";
+    return true;
+  }
+
+  if (command == "jog up") {
+    startMoveTo(currentStepperPosition() + spindleMmToSteps(JOG_TRAVEL_MM));
+    response = "Jog nach oben gestartet.";
+    return true;
+  }
+
+  if (command == "jog down") {
+    startMoveTo(currentStepperPosition() - spindleMmToSteps(JOG_TRAVEL_MM));
+    response = "Jog nach unten gestartet.";
     return true;
   }
 
@@ -801,10 +1045,17 @@ void setupLoadCell() {
     return;
   }
 
-  scale.set_scale(LOADCELL_CALIBRATION_FACTOR);
+  loadCalibrationFromPreferences();
+  scale.set_scale(loadcellCalibrationFactor);
   scale.tare(1);
   loadcellReady = true;
-  Serial.println("HX711 bereit. Tara gesetzt.");
+  if (calibrationValid) {
+    Serial.print("HX711 bereit. Kalibrierfaktor geladen: ");
+    Serial.println(loadcellCalibrationFactor, 6);
+  } else {
+    Serial.println("HX711 bereit. Noch keine gueltige Kalibrierung gespeichert.");
+  }
+  Serial.println("Tara gesetzt.");
 }
 
 void motorTask(void *parameter) {

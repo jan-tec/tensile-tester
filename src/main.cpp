@@ -760,8 +760,8 @@ void handleSerialInput() {
       Serial.println(response);
       if (!ok) {
         Serial.println(
-            "Verfuegbare Kommandos: en, off, zero, tare, force, rpm, acc, "
-            "feed, move, turn, stop");
+            "Verfuegbare Kommandos: en, off, zero, tare, force, pos, stop, "
+            "rpm, acc, feed, move, turn, jog up, jog down, cal_zero, cal_apply");
       }
       serialBuffer = "";
       continue;

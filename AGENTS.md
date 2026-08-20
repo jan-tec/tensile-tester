@@ -152,3 +152,24 @@ ruleset. A direct push to `main` is still technically possible - avoid it;
 use the PR flow. If a hard gate is ever wanted, options are: upgrade the
 account to GitHub Pro, or make the repo public (rulesets are free on public
 repos).
+
+## No-Quirk Policy (NQP)
+
+**Only a fixed quirk is a good quirk.**
+
+A *quirk* is an accidental behavior in existing code discovered during
+implementation (e.g. a missing word boundary in command dispatch). Every
+quirk found MUST:
+
+| Step | Requirement |
+|------|-------------|
+| 1. Pin | Freeze the behavior in a host test (`test/`) so refactors cannot drift it silently |
+| 2. Track | File a GitHub issue: title `[NQP] ...`, label `quirk`, milestone `Quirks`, with repro, pin location, proposed fix, and acceptance criteria (the issue IS the fix spec) |
+| 3. Fix | Only via an explicit behavior-change PR that references the issue and updates the pin in the same PR |
+
+Quirk fixes are behavior changes: they must NOT ride along inside
+behavior-preserving refactors (e.g. M0 FR-004). One quirk per PR.
+
+First batch (found in M0-T002, PR #40): #41 (case-sensitive command names),
+#42 (no word boundary in prefix dispatch), #43 (garbage-accepting /
+truncating value parse).

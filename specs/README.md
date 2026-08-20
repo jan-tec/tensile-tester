@@ -20,6 +20,12 @@ GitHub Issues are **enabled** on this repo (2026-08-20, via owner-level API
 | M0 | #8-#19 (T001-T012), #8 closed |
 | M1 | #20-#30 (T001-T011) |
 | M2 | #31-#38 (T001-T008) |
+| Quirks | #41-#43 (NQP stream, grows as implementation runs) |
+
+**NQP (No-Quirk Policy)**: every quirk found during implementation is pinned
+by a test and filed as an issue in the `Quirks` milestone (label `quirk`);
+each is fixed only by an explicit behavior-change PR. See AGENTS.md
+"No-Quirk Policy (NQP)".
 
 The `tasks.md` files remain the **canonical** backlog (dependency chains and
 gates); GitHub issues are the tracking mirror (each body carries spec refs +

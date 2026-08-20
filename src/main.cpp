@@ -1,30 +1,22 @@
 #include <Arduino.h>
-#include <AccelStepper.h>
 #include <FirmwareCore.h>
 #include <HX711.h>
 #include <Preferences.h>
 #include <WebServer.h>
 #include <WiFi.h>
 
-namespace {
-constexpr uint8_t DIR_PIN = 19;
-constexpr uint8_t STEP_PIN = 18;
-constexpr uint8_t EN_PIN = 5;
+#include "Motion.h"
 
+namespace {
 constexpr uint8_t LOADCELL_DOUT_PIN = 32;
 constexpr uint8_t LOADCELL_SCK_PIN = 33;
 
 // Gear/feed math + clamp live in lib/FirmwareCore (host-unit-tested);
 // this file keeps runtime config defaults only.
-constexpr float DEFAULT_OUTPUT_RPM = 5.0f;
-constexpr float DEFAULT_OUTPUT_ACCEL_RPM_PER_S = 20.0f;
-constexpr float DEFAULT_MOVE_MM_PER_MIN = 12.0f;
 constexpr unsigned long STATUS_INTERVAL_MS = 500;
 constexpr unsigned long HX711_SAMPLE_INTERVAL_MS = 100;
 constexpr float GRAVITY = 9.80665f;
 constexpr float FORCE_FILTER_ALPHA = 0.18f;
-constexpr uint16_t MOTOR_TASK_DELAY_US = 200;
-constexpr uint8_t MOTOR_TASK_YIELD_INTERVAL = 20;
 constexpr float JOG_TRAVEL_MM = 1000.0f;
 
 constexpr char WIFI_SSID[] = "ESP32-Testmaschine";
@@ -502,16 +494,11 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
 </html>
 )HTML";
 
-AccelStepper stepper(AccelStepper::DRIVER, STEP_PIN, DIR_PIN);
+Motion motion;
 HX711 scale;
 Preferences preferences;
 WebServer server(80);
-TaskHandle_t motorTaskHandle = nullptr;
-portMUX_TYPE motionMux = portMUX_INITIALIZER_UNLOCKED;
 
-float configuredOutputRpm = DEFAULT_OUTPUT_RPM;
-float configuredOutputAccelRpmPerS = DEFAULT_OUTPUT_ACCEL_RPM_PER_S;
-bool driverEnabled = false;
 unsigned long lastStatusMs = 0;
 unsigned long lastHx711SampleMs = 0;
 float currentForceNewton = 0.0f;
@@ -563,59 +550,16 @@ bool readAverageRawValue(uint8_t sampleCount, long &averageRaw) {
   return true;
 }
 
-// Gear/feed conversion (outputRpmToStepsPerSecond, outputTurnsToSteps,
-// spindleMmToSteps, rpm/feed, clampFeedMmPerMin) lives in lib/FirmwareCore,
-// unit-tested on the host.
-long currentStepperPosition() {
-  portENTER_CRITICAL(&motionMux);
-  const long position = stepper.currentPosition();
-  portEXIT_CRITICAL(&motionMux);
-  return position;
-}
-
-bool motorIsRunning() {
-  portENTER_CRITICAL(&motionMux);
-  const bool running = stepper.isRunning();
-  portEXIT_CRITICAL(&motionMux);
-  return running;
-}
-
-float currentPositionMm() {
-  const float turns =
-      static_cast<float>(currentStepperPosition()) / OUTPUT_STEPS_PER_REV;
-  return turns * SPINDLE_PITCH_MM_PER_REV;
-}
-
-void applyMotionSettings() {
-  portENTER_CRITICAL(&motionMux);
-  stepper.setMaxSpeed(outputRpmToStepsPerSecond(configuredOutputRpm));
-  stepper.setAcceleration(
-      outputRpmToStepsPerSecond(configuredOutputAccelRpmPerS));
-  portEXIT_CRITICAL(&motionMux);
-}
-
-void enableDriver() {
-  portENTER_CRITICAL(&motionMux);
-  digitalWrite(EN_PIN, LOW);
-  stepper.enableOutputs();
-  driverEnabled = true;
-  portEXIT_CRITICAL(&motionMux);
-}
-
-void disableDriver() {
-  portENTER_CRITICAL(&motionMux);
-  stepper.stop();
-  stepper.disableOutputs();
-  digitalWrite(EN_PIN, HIGH);
-  driverEnabled = false;
-  portEXIT_CRITICAL(&motionMux);
-}
-
+// Stepper access (position, running, enable/disable, move, settings,
+// motor task) lives in Motion (M0-T003); gear/feed conversion
+// (outputRpmToStepsPerSecond, outputTurnsToSteps, spindleMmToSteps,
+// rpm/feed, clampFeedMmPerMin) lives in lib/FirmwareCore, unit-tested on
+// the host.
 void printPosition() {
   Serial.print("Position [Schritte]: ");
-  Serial.print(currentStepperPosition());
+  Serial.print(motion.steps());
   Serial.print(" | Weg [mm]: ");
-  Serial.print(currentPositionMm(), 3);
+  Serial.print(motion.positionMm(), 3);
   Serial.print(" | Kraft [N]: ");
   Serial.println(currentForceNewton, 2);
 }
@@ -668,13 +612,6 @@ bool parseValueAfterCommand(const String &command, const char *prefix,
   return true;
 }
 
-void startMoveTo(long targetSteps) {
-  enableDriver();
-  portENTER_CRITICAL(&motionMux);
-  stepper.moveTo(targetSteps);
-  portEXIT_CRITICAL(&motionMux);
-}
-
 void handleSerialInput() {
   while (Serial.available() > 0) {
     const char incoming = static_cast<char>(Serial.read());
@@ -703,19 +640,19 @@ void handleSerialInput() {
 String statusJson() {
   String json = "{";
   json += "\"driverEnabled\":";
-  json += driverEnabled ? "true" : "false";
+  json += motion.isEnabled() ? "true" : "false";
   json += ",\"running\":";
-  json += motorIsRunning() ? "true" : "false";
+  json += motion.isRunning() ? "true" : "false";
   json += ",\"rpm\":";
-  json += String(configuredOutputRpm, 2);
+  json += String(motion.outputRpm(), 2);
   json += ",\"acc\":";
-  json += String(configuredOutputAccelRpmPerS, 2);
+  json += String(motion.accelRpmPerS(), 2);
   json += ",\"feedMmPerMin\":";
-  json += String(rpmToFeedMmPerMin(configuredOutputRpm), 2);
+  json += String(rpmToFeedMmPerMin(motion.outputRpm()), 2);
   json += ",\"positionMm\":";
-  json += String(currentPositionMm(), 3);
+  json += String(motion.positionMm(), 3);
   json += ",\"steps\":";
-  json += String(currentStepperPosition());
+  json += String(motion.steps());
   json += ",\"forceNewton\":";
   json += String(currentForceNewton, 2);
   json += ",\"calibrationValid\":";
@@ -752,21 +689,19 @@ bool executeCommand(String command, String &response) {
   float value = 0.0f;
 
   if (command == "en") {
-    enableDriver();
+    motion.enable();
     response = "Beide Treiber aktiviert.";
     return true;
   }
 
   if (command == "off") {
-    disableDriver();
+    motion.disable();
     response = "Beide Treiber deaktiviert.";
     return true;
   }
 
   if (command == "zero") {
-    portENTER_CRITICAL(&motionMux);
-    stepper.setCurrentPosition(0);
-    portEXIT_CRITICAL(&motionMux);
+    motion.zero();
     response = "Achsposition auf 0 gesetzt.";
     return true;
   }
@@ -837,9 +772,7 @@ bool executeCommand(String command, String &response) {
   }
 
   if (command == "stop") {
-    portENTER_CRITICAL(&motionMux);
-    stepper.stop();
-    portEXIT_CRITICAL(&motionMux);
+    motion.stop();
     response = "Stopp angefordert.";
     return true;
   }
@@ -856,9 +789,8 @@ bool executeCommand(String command, String &response) {
       return false;
     }
 
-    configuredOutputRpm = value;
-    applyMotionSettings();
-    response = "Drehzahl gesetzt auf " + String(configuredOutputRpm, 2) +
+    motion.setOutputRpm(value);
+    response = "Drehzahl gesetzt auf " + String(motion.outputRpm(), 2) +
                " U/min.";
     return true;
   }
@@ -869,10 +801,9 @@ bool executeCommand(String command, String &response) {
       return false;
     }
 
-    configuredOutputAccelRpmPerS = value;
-    applyMotionSettings();
+    motion.setAccelRpmPerS(value);
     response = "Beschleunigung gesetzt auf " +
-               String(configuredOutputAccelRpmPerS, 2) + " U/min/s.";
+               String(motion.accelRpmPerS(), 2) + " U/min/s.";
     return true;
   }
 
@@ -883,32 +814,35 @@ bool executeCommand(String command, String &response) {
     }
 
     const float clampedFeed = clampFeedMmPerMin(value);
-    configuredOutputRpm = feedMmPerMinToRpm(clampedFeed);
-    applyMotionSettings();
+    motion.setOutputRpm(feedMmPerMinToRpm(clampedFeed));
     response = "Vorschub gesetzt auf " + String(clampedFeed, 2) + " mm/min.";
     return true;
   }
 
   if (command == "jog up") {
-    startMoveTo(currentStepperPosition() + spindleMmToSteps(JOG_TRAVEL_MM));
+    motion.startMoveToSteps(static_cast<long>(motion.steps() +
+                                              spindleMmToSteps(JOG_TRAVEL_MM)));
     response = "Jog nach oben gestartet.";
     return true;
   }
 
   if (command == "jog down") {
-    startMoveTo(currentStepperPosition() - spindleMmToSteps(JOG_TRAVEL_MM));
+    motion.startMoveToSteps(static_cast<long>(motion.steps() -
+                                              spindleMmToSteps(JOG_TRAVEL_MM)));
     response = "Jog nach unten gestartet.";
     return true;
   }
 
   if (parseValueAfterCommand(command, "move", value)) {
-    startMoveTo(currentStepperPosition() + spindleMmToSteps(value));
+    motion.startMoveToSteps(
+        static_cast<long>(motion.steps() + spindleMmToSteps(value)));
     response = "Relativbewegung gestartet: " + String(value, 3) + " mm.";
     return true;
   }
 
   if (parseValueAfterCommand(command, "turn", value)) {
-    startMoveTo(currentStepperPosition() + outputTurnsToSteps(value));
+    motion.startMoveToSteps(
+        static_cast<long>(motion.steps() + outputTurnsToSteps(value)));
     response = "Relativbewegung gestartet: " + String(value, 3) +
                " Umdrehungen.";
     return true;
@@ -983,38 +917,12 @@ void setupLoadCell() {
   Serial.println("Tara gesetzt.");
 }
 
-void motorTask(void *parameter) {
-  uint8_t loopCounter = 0;
-
-  for (;;) {
-    portENTER_CRITICAL(&motionMux);
-    if (driverEnabled) {
-      stepper.run();
-    }
-    portEXIT_CRITICAL(&motionMux);
-
-    delayMicroseconds(MOTOR_TASK_DELAY_US);
-
-    loopCounter++;
-    if (loopCounter >= MOTOR_TASK_YIELD_INTERVAL) {
-      loopCounter = 0;
-      vTaskDelay(1);
-    }
-  }
-}
 }  // namespace
 
 void setup() {
   Serial.begin(115200);
 
-  pinMode(EN_PIN, OUTPUT);
-  digitalWrite(EN_PIN, HIGH);
-
-  stepper.setEnablePin(EN_PIN);
-  stepper.setPinsInverted(false, false, true);
-  stepper.disableOutputs();
-  configuredOutputRpm = feedMmPerMinToRpm(DEFAULT_MOVE_MM_PER_MIN);
-  applyMotionSettings();
+  motion.begin();
 
   delay(500);
   Serial.println();
@@ -1024,9 +932,6 @@ void setup() {
   setupLoadCell();
   setupWiFi();
   setupWebServer();
-
-  xTaskCreatePinnedToCore(motorTask, "motorTask", 4096, nullptr, 2,
-                          &motorTaskHandle, 0);
 }
 
 void loop() {
@@ -1037,7 +942,7 @@ void loop() {
   const unsigned long now = millis();
   if (now - lastStatusMs >= STATUS_INTERVAL_MS) {
     lastStatusMs = now;
-    if (driverEnabled || loadcellReady) {
+    if (motion.isEnabled() || loadcellReady) {
       printPosition();
     }
   }

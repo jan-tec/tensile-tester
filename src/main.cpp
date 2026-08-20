@@ -6,6 +6,7 @@
 #include "Commands.h"
 #include "LoadCell.h"
 #include "Motion.h"
+#include "SerialCli.h"
 #include "Settings.h"
 
 namespace {
@@ -485,39 +486,17 @@ Settings settings;
 Motion motion;
 LoadCell loadcell;
 Commands commands(motion, loadcell);
+SerialCli serialCli(commands);
 WebServer server(80);
 
 unsigned long lastStatusMs = 0;
-String serialBuffer;
 
 // Stepper access lives in Motion (M0-T003); loadcell (HX711, sampling,
 // filter, calibration) lives in LoadCell (M0-T004); command policy lives
-// in Commands (M0-T006); gear/feed conversion (outputRpmToStepsPerSecond,
+// in Commands (M0-T006); the serial input loop lives in SerialCli
+// (M0-T007); gear/feed conversion (outputRpmToStepsPerSecond,
 // outputTurnsToSteps, spindleMmToSteps, rpm/feed, clampFeedMmPerMin)
 // lives in lib/FirmwareCore, unit-tested on the host.
-void handleSerialInput() {
-  while (Serial.available() > 0) {
-    const char incoming = static_cast<char>(Serial.read());
-
-    if (incoming == '\r') {
-      continue;
-    }
-
-    if (incoming == '\n') {
-      String response;
-      const bool ok = commands.execute(serialBuffer, response);
-      Serial.println(response);
-      if (!ok) {
-        Serial.println(Commands::helpText());
-      }
-      serialBuffer = "";
-      continue;
-    }
-
-    serialBuffer += incoming;
-  }
-}
-
 String statusJson() {
   String json = "{";
   json += "\"driverEnabled\":";
@@ -623,7 +602,7 @@ void setup() {
 void loop() {
   server.handleClient();
   loadcell.poll();
-  handleSerialInput();
+  serialCli.poll();
 
   const unsigned long now = millis();
   if (now - lastStatusMs >= STATUS_INTERVAL_MS) {

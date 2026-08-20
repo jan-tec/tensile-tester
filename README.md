@@ -74,7 +74,7 @@ API (all endpoints are GET):
 
 | Endpoint | Payload |
 |----------|---------|
-| `/api/status` | JSON: `driverEnabled`, `running`, `rpm`, `acc`, `feedMmPerMin`, `positionMm`, `steps`, `forceNewton`, `calibrationValid`, `calibrationFactor`, `testMode`, `network` |
+| `/api/status` | JSON: `driverEnabled`, `running`, `rpm`, `acc`, `feedMmPerMin`, `positionMm`, `steps`, `forceNewton`, `calibrationValid`, `calibrationFactor`, `network` |
 | `/api/command?cmd=<command>` | executes a CLI command; returns `{"ok":bool,"message":"..."}` |
 
 The UI shows a live force plot (10 samples/s, fixed axis -50..400 N),

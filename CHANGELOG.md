@@ -33,8 +33,17 @@ and API).
   reloaded at boot; jog buttons and `jog up` / `jog down` commands (relative
   1000 mm travel) (2026-04-14, `f7ce4b4`)
 
+### Removed
+
+- Dead `TestMode` scaffolding (enum, `activeTestMode` state, always-Manuell
+  "Modus" pill, disabled "Tests" select) and the `testMode` field from
+  `GET /api/status` (2026-08-20, #3)
+- Unused TMC2209 library dependencies (`teemuatlut/TMCStepper`,
+  `janelia-arduino/TMC2209`) from `lib_deps` - the driver runs plain
+  STEP/DIR/EN via AccelStepper (2026-08-20, #3)
+
 ### Known limitations
 
-- Automatic test modes ("Ziehen bis Bruch", "Kraft halten") are placeholders:
-  the `TestMode` enum and the UI select exist, but the test logic is not
-  implemented.
+- Automatic test modes ("Ziehen bis Bruch", "Kraft halten") are not
+  implemented; the scaffolding for them was removed in #3 and will be
+  re-added in the PR that implements the first mode.

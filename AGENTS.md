@@ -67,11 +67,11 @@ mv /tmp/main.cpp.bak src/main.cpp
   NVS Preferences namespace `testmachine`.
 - The web UI is the PROGMEM string `INDEX_HTML` in main.cpp. Any UI change is
   a firmware change: rebuild, reflash, then the browser must reload.
-- TMC2209 driver libraries are declared in `platformio.ini` (both
-  teemuatlut/TMCStepper and janelia-arduino/TMC2209, marked "ODER") but
-  **neither is included anywhere** - the driver is plain STEP/DIR/EN via
-  AccelStepper `DRIVER` mode. Do not add TMC UART config without an actual
-  hardware reason; it is currently not wired.
+- The TMC2209 driver runs plain STEP/DIR/EN via AccelStepper `DRIVER` mode.
+  No TMC library is declared in `platformio.ini` (the formerly listed
+  TMCStepper/TMC2209 lib_deps were never included and have been removed).
+  Do not add TMC UART config or libraries without an actual hardware reason;
+  UART is not wired.
 
 ## Conventions
 

@@ -61,7 +61,6 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
       --accent-dark: #8f3816;
       --success: #2f6f4f;
       --danger: #9e2f2f;
-      --plot: #d9622b;
     }
     * { box-sizing: border-box; }
     body {
@@ -259,7 +258,6 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
         <div class="status">
           <div class="pill"><span class="label">Treiber</span><span class="value" id="driverState">-</span></div>
           <div class="pill"><span class="label">Bewegung</span><span class="value" id="motionState">-</span></div>
-          <div class="pill"><span class="label">Modus</span><span class="value" id="testMode">-</span></div>
           <div class="pill"><span class="label">Kraft</span><span class="value" id="forceValue">-</span></div>
           <div class="pill"><span class="label">Position</span><span class="value" id="positionValue">-</span></div>
           <div class="pill"><span class="label">Vorschub</span><span class="value" id="feedValue">-</span></div>
@@ -298,16 +296,6 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
           <input name="value" type="number" step="0.01" placeholder="Umdrehungen relativ">
           <button type="submit">Turns fahren</button>
         </form>
-      </section>
-
-      <section class="card">
-        <h2>Tests</h2>
-        <select id="modeSelect" disabled>
-          <option>Manuell</option>
-          <option>Ziehen bis Bruch</option>
-          <option>Kraft halten</option>
-        </select>
-        <p class="note">Automatische Testmodi folgen in der naechsten Iteration. Die Struktur dafuer ist jetzt vorbereitet.</p>
       </section>
 
       <section class="card plot-card">
@@ -351,7 +339,6 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
     const statusFields = {
       driverState: document.getElementById("driverState"),
       motionState: document.getElementById("motionState"),
-      testMode: document.getElementById("testMode"),
       forceValue: document.getElementById("forceValue"),
       positionValue: document.getElementById("positionValue"),
       feedValue: document.getElementById("feedValue"),
@@ -429,7 +416,6 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
         const data = await response.json();
         statusFields.driverState.textContent = data.driverEnabled ? "aktiv" : "aus";
         statusFields.motionState.textContent = data.running ? "laeuft" : "bereit";
-        statusFields.testMode.textContent = data.testMode;
         statusFields.forceValue.textContent = Number(data.forceNewton).toFixed(2) + " N";
         statusFields.positionValue.textContent = Number(data.positionMm).toFixed(3) + " mm";
         statusFields.feedValue.textContent = Number(data.feedMmPerMin).toFixed(2) + " mm/min";
@@ -522,12 +508,6 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
 </html>
 )HTML";
 
-enum class TestMode {
-  Manual,
-  PullUntilBreak,
-  HoldForce,
-};
-
 AccelStepper stepper(AccelStepper::DRIVER, STEP_PIN, DIR_PIN);
 HX711 scale;
 Preferences preferences;
@@ -545,7 +525,6 @@ bool loadcellReady = false;
 bool calibrationValid = false;
 float loadcellCalibrationFactor = DEFAULT_LOADCELL_CALIBRATION_FACTOR;
 bool calibrationZeroCaptured = false;
-TestMode activeTestMode = TestMode::Manual;
 String serialBuffer;
 
 bool executeCommand(String command, String &response);
@@ -590,12 +569,11 @@ bool readAverageRawValue(uint8_t sampleCount, long &averageRaw) {
   return true;
 }
 
+// jane: one helper for speed and acceleration - per-rpm scaling is identical
+// (steps/s vs steps/s^2 differ only in the input unit). Add a second helper
+// only if the math diverges.
 float outputRpmToStepsPerSecond(float rpm) {
   return (rpm * OUTPUT_STEPS_PER_REV) / 60.0f;
-}
-
-float outputAccelToStepsPerSecondSq(float rpmPerSecond) {
-  return (rpmPerSecond * OUTPUT_STEPS_PER_REV) / 60.0f;
 }
 
 long outputTurnsToSteps(float turns) {
@@ -644,23 +622,11 @@ float clampFeedMmPerMin(float mmPerMin) {
   return mmPerMin;
 }
 
-const __FlashStringHelper *testModeLabel() {
-  switch (activeTestMode) {
-    case TestMode::PullUntilBreak:
-      return F("Ziehen bis Bruch");
-    case TestMode::HoldForce:
-      return F("Kraft halten");
-    case TestMode::Manual:
-    default:
-      return F("Manuell");
-  }
-}
-
 void applyMotionSettings() {
   portENTER_CRITICAL(&motionMux);
   stepper.setMaxSpeed(outputRpmToStepsPerSecond(configuredOutputRpm));
   stepper.setAcceleration(
-      outputAccelToStepsPerSecondSq(configuredOutputAccelRpmPerS));
+      outputRpmToStepsPerSecond(configuredOutputAccelRpmPerS));
   portEXIT_CRITICAL(&motionMux);
 }
 
@@ -739,7 +705,6 @@ bool parseValueAfterCommand(const String &command, const char *prefix,
 }
 
 void startMoveTo(long targetSteps) {
-  activeTestMode = TestMode::Manual;
   enableDriver();
   portENTER_CRITICAL(&motionMux);
   stepper.moveTo(targetSteps);
@@ -793,9 +758,6 @@ String statusJson() {
   json += calibrationValid ? "true" : "false";
   json += ",\"calibrationFactor\":";
   json += String(loadcellCalibrationFactor, 6);
-  json += ",\"testMode\":\"";
-  json += String(testModeLabel());
-  json += "\"";
   json += ",\"network\":\"SSID ";
   json += WIFI_SSID;
   json += " | IP ";
@@ -911,7 +873,6 @@ bool executeCommand(String command, String &response) {
   }
 
   if (command == "stop") {
-    activeTestMode = TestMode::Manual;
     portENTER_CRITICAL(&motionMux);
     stepper.stop();
     portEXIT_CRITICAL(&motionMux);

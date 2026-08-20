@@ -8,13 +8,15 @@ WiFi-AP web UI, serial CLI.
 
 | Path | Purpose |
 |------|---------|
-| `src/main.cpp` | The only compiled file (~1100 lines): ALL firmware + web UI inlined as `INDEX_HTML` PROGMEM string |
+| `src/main.cpp` | Hardware adapter (~1050 lines): firmware + web UI inlined as `INDEX_HTML` PROGMEM string |
+| `lib/FirmwareCore/` | Pure C++ gear/feed math (no Arduino) - unit-tested on the host |
+| `test/` | Unity host tests (`pio test -e native`) |
 | `standalone_tests/` | Debug sketches (blink, raw loadcell, motor menu) - NOT built automatically (see below) |
-| `test/`, `include/`, `lib/` | Empty scaffolding, README only |
+| `include/` | Empty scaffolding, README only |
 
-GitHub Actions CI (`.github/workflows/ci.yml`) builds `pio run -e esp32dev`
-on push to `main` and on every PR; the check context is `build`. No linter,
-no test runner.
+GitHub Actions CI (`.github/workflows/ci.yml`) runs two separate jobs on push
+to `main` and on every PR: `build` (`pio run -e esp32dev`) and `test`
+(`pio test -e native` host unit tests). No linter.
 
 IDE C++ LSP will report `Arduino.h` not found and friends - false positive,
 the ESP toolchain headers are only visible to PlatformIO. Ignore LSP
@@ -36,21 +38,43 @@ with `MissingPackageManifestError`. Fix once, then rebuild:
 ```
 
 ```bash
-pio run -e esp32dev            # build (only env)
+pio run -e esp32dev            # build the firmware
 pio run -t upload -e esp32dev  # flash (needs board on USB port)
 pio device monitor -p <port> -b 115200
 ```
 
-## Testing (local-first)
+## Testing (full TDD, local-first)
 
 | Layer | Where | What |
 |-------|-------|------|
-| **Primary** | Local | `pio run -e esp32dev` compile check; flash + serial/web smoke test when the board is on the bench |
-| **Gate** | CI | Same `pio run` as an independent second opinion on every push/PR; additional test infra (future test matrix, coverage) lives in CI, not locally |
+| **Primary (unit)** | Local, host | `pio test -e native` - Unity tests for `lib/FirmwareCore` (pure C++, no Arduino) |
+| **Compile gate** | Local | `pio run -e esp32dev` |
+| **Integration** | Target | Flash + serial/web smoke test when the board is on the bench: FreeRTOS tasks, portMUX, AccelStepper timing, NVS, HX711 timing, WebServer |
+| **Gate** | CI | Separate `test` (host) + `build` (esp32dev) jobs on every push/PR; additional test infra (future test matrix, coverage) lives in CI, not locally |
 
-Rule: local build green **before** opening a PR; CI `build` check green
-**before** merging. No unit-test runner exists yet - the compile check plus
-the `standalone_tests/` debug sketches are the current test surface.
+**TDD rule (all new logic):**
+
+1. Pure logic (gear/feed math, filters, calibration compute, command parsing,
+   state machines) goes into `lib/FirmwareCore/` (pure C++: no `Arduino.h`,
+   no `PROGMEM`/`F()`, no `String`, no `portMUX`) with the matching test in
+   `test/`.
+2. **RED:** add the failing test first -> `pio test -e native`.
+3. **GREEN:** minimal implementation until `pio test -e native` is green.
+4. **REFACTOR:** keep `pio test -e native` AND `pio run -e esp32dev` green.
+5. `src/main.cpp` stays the hardware adapter (pins, FreeRTOS tasks, NVS,
+   driver I/O, WebServer); hardware-dependent behavior is verified by target
+   smoke test, not by host mocks.
+
+**Host vs target boundary:** unit-test state machines and decisions
+synchronously on the host; real FreeRTOS tasks, portMUX exclusion,
+AccelStepper timing, NVS persistence and HX711 GPIO timing stay
+target-tested.
+
+**Why Unity:** `pio test` only supports its bundled runners; Unity is the C++
+one. Catch2/GoogleTest would need custom wiring for no gain at this size.
+
+Rule: local unit tests + local build green **before** opening a PR; the CI
+`test` and `build` checks green **before** merging.
 
 ## Running a standalone test (gotcha)
 
@@ -79,9 +103,9 @@ mv /tmp/main.cpp.bak src/main.cpp
   access is wrapped in `portMUX` critical sections (`motionMux`). Never block
   inside them. Two physical motors are driven synchronously from the same
   STEP/DIR/EN signals.
-- Gear math constants are at the top of main.cpp: 200 steps/rev x 13.73 gear
-  x 8 microsteps = 21968 steps per spindle revolution, spindle pitch 2 mm/rev.
-  Keep them in sync if the hardware changes.
+- Gear math (200 steps/rev x 13.73 gear x 8 microsteps = 21968 steps per
+  spindle revolution, spindle pitch 2 mm/rev) lives in `lib/FirmwareCore/`,
+  unit-tested on the host. Keep it in sync if the hardware changes.
 - Loadcell: HX711 on GPIO 32/33, sampled at 10 Hz in the loop task,
   low-pass filtered (alpha 0.18). Calibration factor + valid flag persist in
   NVS Preferences namespace `testmachine`.
@@ -110,7 +134,7 @@ mv /tmp/main.cpp.bak src/main.cpp
 | No permanent dev branch | Trunk-based; `main` is always shippable. |
 | Change flow | Short-lived branch (`fix/...`, `feat/...`, `docs/...`) -> PR -> squash merge into `main`. |
 | Upstream sync | `git fetch upstream` -> create `sync/upstream-YYYYMMDD` -> `git merge upstream/main` there -> PR -> squash/merge. **Never merge upstream directly into `main`.** |
-| Gate | Local `pio run -e esp32dev` green before opening a PR (primary); the PR's CI `build` check green before merge (independent second opinion). No automated enforcement exists. |
+| Gate | Local `pio test -e native` + `pio run -e esp32dev` green before opening a PR (primary); the PR's CI `test` + `build` checks green before merge (independent second opinion). No automated enforcement exists. |
 
 **Why no hard gate (process-only):** `origin` is a **private** repo on a
 **free personal** account (`satwareAG-ironMike`). GitHub blocks both rulesets

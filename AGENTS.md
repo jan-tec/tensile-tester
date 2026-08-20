@@ -22,15 +22,35 @@ diagnostics in `src/main.cpp`; trust `pio run` output instead.
 
 ## Build / flash
 
-PlatformIO CLI is NOT preinstalled on this workstation (`pio` not in PATH,
-verified 2026-08-19). Install first: `pipx install platformio`. The first
-build downloads the `espressif32` toolchain (~200 MB).
+`pio` is installed locally via pipx (PlatformIO Core 6.1.19 - same version CI
+pins; `~/.local/bin` is in PATH via `~/.bashrc`). **Local build is the primary
+verification: run it before pushing any PR** (see Testing below). The first
+build downloads the `espressif32` toolchain (~200 MB) into `~/.platformio`;
+later builds are fast and offline.
+
+Gotcha: pipx venvs ship without pip, so PlatformIO tool installs can fail
+with `MissingPackageManifestError`. Fix once, then rebuild:
+
+```bash
+~/.local/share/pipx/venvs/platformio/bin/python -m ensurepip
+```
 
 ```bash
 pio run -e esp32dev            # build (only env)
 pio run -t upload -e esp32dev  # flash (needs board on USB port)
 pio device monitor -p <port> -b 115200
 ```
+
+## Testing (local-first)
+
+| Layer | Where | What |
+|-------|-------|------|
+| **Primary** | Local | `pio run -e esp32dev` compile check; flash + serial/web smoke test when the board is on the bench |
+| **Gate** | CI | Same `pio run` as an independent second opinion on every push/PR; additional test infra (future test matrix, coverage) lives in CI, not locally |
+
+Rule: local build green **before** opening a PR; CI `build` check green
+**before** merging. No unit-test runner exists yet - the compile check plus
+the `standalone_tests/` debug sketches are the current test surface.
 
 ## Running a standalone test (gotcha)
 
@@ -90,7 +110,7 @@ mv /tmp/main.cpp.bak src/main.cpp
 | No permanent dev branch | Trunk-based; `main` is always shippable. |
 | Change flow | Short-lived branch (`fix/...`, `feat/...`, `docs/...`) -> PR -> squash merge into `main`. |
 | Upstream sync | `git fetch upstream` -> create `sync/upstream-YYYYMMDD` -> `git merge upstream/main` there -> PR -> squash/merge. **Never merge upstream directly into `main`.** |
-| CI gate | The PR's `build` check must be green before merge. No automated enforcement exists. |
+| Gate | Local `pio run -e esp32dev` green before opening a PR (primary); the PR's CI `build` check green before merge (independent second opinion). No automated enforcement exists. |
 
 **Why no hard gate (process-only):** `origin` is a **private** repo on a
 **free personal** account (`satwareAG-ironMike`). GitHub blocks both rulesets

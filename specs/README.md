@@ -11,11 +11,19 @@ plan.md = HOW, tasks.md = issue backlog). **One task = one issue = one PR.**
 
 ## Issue tracking
 
-GitHub **Issues are disabled** on this repo (`has_issues: false`, verified
-2026-08-20; Projects enabled). The `tasks.md` files are therefore the
-canonical issue backlog. If Issues get enabled in the repo settings, sync
-`T###` tasks 1:1 to issues (title = task line, body = spec refs), one issue
-per milestone group.
+GitHub Issues are **enabled** on this repo (2026-08-20, via owner-level API
+`PATCH /repos/{owner}/{repo}` `has_issues=true`) and the backlog is synced
+**1:1**:
+
+| Milestone | GitHub issues |
+|-----------|---------------|
+| M0 | #8-#19 (T001-T012), #8 closed |
+| M1 | #20-#30 (T001-T011) |
+| M2 | #31-#38 (T001-T008) |
+
+The `tasks.md` files remain the **canonical** backlog (dependency chains and
+gates); GitHub issues are the tracking mirror (each body carries spec refs +
+gate). Rule: when a `tasks.md` list changes, sync the issues in the same PR.
 
 ## Per-task gate (AGENTS.md policy)
 

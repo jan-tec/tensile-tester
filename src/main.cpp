@@ -1,33 +1,19 @@
 #include <Arduino.h>
 #include <FirmwareCore.h>
-#include <HX711.h>
-#include <Preferences.h>
 #include <WebServer.h>
 #include <WiFi.h>
 
+#include "LoadCell.h"
 #include "Motion.h"
 
 namespace {
-constexpr uint8_t LOADCELL_DOUT_PIN = 32;
-constexpr uint8_t LOADCELL_SCK_PIN = 33;
-
 // Gear/feed math + clamp live in lib/FirmwareCore (host-unit-tested);
 // this file keeps runtime config defaults only.
 constexpr unsigned long STATUS_INTERVAL_MS = 500;
-constexpr unsigned long HX711_SAMPLE_INTERVAL_MS = 100;
-constexpr float GRAVITY = 9.80665f;
-constexpr float FORCE_FILTER_ALPHA = 0.18f;
 constexpr float JOG_TRAVEL_MM = 1000.0f;
 
 constexpr char WIFI_SSID[] = "ESP32-Testmaschine";
 constexpr char WIFI_PASSWORD[] = "testmaschine";
-
-constexpr char PREFERENCES_NAMESPACE[] = "testmachine";
-constexpr char PREF_CALIBRATION_VALID[] = "lc_valid";
-constexpr char PREF_CALIBRATION_FACTOR[] = "lc_factor";
-constexpr float DEFAULT_LOADCELL_CALIBRATION_FACTOR = 1.0f;
-constexpr uint8_t CALIBRATION_CAPTURE_SAMPLES = 10;
-constexpr unsigned long CALIBRATION_SETTLE_MS = 1200;
 
 const char INDEX_HTML[] PROGMEM = R"HTML(
 <!DOCTYPE html>
@@ -495,63 +481,16 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
 )HTML";
 
 Motion motion;
-HX711 scale;
-Preferences preferences;
+LoadCell loadcell;
 WebServer server(80);
 
 unsigned long lastStatusMs = 0;
-unsigned long lastHx711SampleMs = 0;
-float currentForceNewton = 0.0f;
-bool loadcellReady = false;
-bool calibrationValid = false;
-float loadcellCalibrationFactor = DEFAULT_LOADCELL_CALIBRATION_FACTOR;
-bool calibrationZeroCaptured = false;
 String serialBuffer;
 
 bool executeCommand(String command, String &response);
 
-void loadCalibrationFromPreferences() {
-  preferences.begin(PREFERENCES_NAMESPACE, true);
-  calibrationValid = preferences.getBool(PREF_CALIBRATION_VALID, false);
-  loadcellCalibrationFactor = preferences.getFloat(
-      PREF_CALIBRATION_FACTOR, DEFAULT_LOADCELL_CALIBRATION_FACTOR);
-  preferences.end();
-
-  if (!calibrationValid || loadcellCalibrationFactor == 0.0f) {
-    calibrationValid = false;
-    loadcellCalibrationFactor = DEFAULT_LOADCELL_CALIBRATION_FACTOR;
-  }
-}
-
-void saveCalibrationToPreferences(float factor) {
-  preferences.begin(PREFERENCES_NAMESPACE, false);
-  preferences.putFloat(PREF_CALIBRATION_FACTOR, factor);
-  preferences.putBool(PREF_CALIBRATION_VALID, true);
-  preferences.end();
-
-  loadcellCalibrationFactor = factor;
-  calibrationValid = true;
-}
-
-bool readAverageRawValue(uint8_t sampleCount, long &averageRaw) {
-  if (!loadcellReady) {
-    return false;
-  }
-
-  int64_t sum = 0;
-  for (uint8_t i = 0; i < sampleCount; ++i) {
-    if (!scale.wait_ready_timeout(1500)) {
-      return false;
-    }
-    sum += scale.read();
-  }
-
-  averageRaw = static_cast<long>(sum / sampleCount);
-  return true;
-}
-
-// Stepper access (position, running, enable/disable, move, settings,
-// motor task) lives in Motion (M0-T003); gear/feed conversion
+// Stepper access lives in Motion (M0-T003); loadcell (HX711, sampling,
+// filter, calibration) lives in LoadCell (M0-T004); gear/feed conversion
 // (outputRpmToStepsPerSecond, outputTurnsToSteps, spindleMmToSteps,
 // rpm/feed, clampFeedMmPerMin) lives in lib/FirmwareCore, unit-tested on
 // the host.
@@ -561,38 +500,7 @@ void printPosition() {
   Serial.print(" | Weg [mm]: ");
   Serial.print(motion.positionMm(), 3);
   Serial.print(" | Kraft [N]: ");
-  Serial.println(currentForceNewton, 2);
-}
-
-void updateForceMeasurement() {
-  if (!loadcellReady) {
-    return;
-  }
-
-  if (millis() - lastHx711SampleMs < HX711_SAMPLE_INTERVAL_MS) {
-    return;
-  }
-  lastHx711SampleMs = millis();
-
-  if (!scale.is_ready()) {
-    return;
-  }
-
-  const long rawReading = scale.read();
-  const float massGrams = (static_cast<float>(rawReading) - scale.get_offset()) /
-                          scale.get_scale();
-  const float measuredForceNewton = (massGrams / 1000.0f) * GRAVITY;
-  currentForceNewton +=
-      (measuredForceNewton - currentForceNewton) * FORCE_FILTER_ALPHA;
-}
-
-void tareLoadCell() {
-  if (!loadcellReady) {
-    return;
-  }
-
-  scale.tare(1);
-  currentForceNewton = 0.0f;
+  Serial.println(loadcell.forceNewton(), 2);
 }
 
 bool parseValueAfterCommand(const String &command, const char *prefix,
@@ -654,11 +562,11 @@ String statusJson() {
   json += ",\"steps\":";
   json += String(motion.steps());
   json += ",\"forceNewton\":";
-  json += String(currentForceNewton, 2);
+  json += String(loadcell.forceNewton(), 2);
   json += ",\"calibrationValid\":";
-  json += calibrationValid ? "true" : "false";
+  json += loadcell.calibrationValid() ? "true" : "false";
   json += ",\"calibrationFactor\":";
-  json += String(loadcellCalibrationFactor, 6);
+  json += String(loadcell.calibrationFactor(), 6);
   json += ",\"network\":\"SSID ";
   json += WIFI_SSID;
   json += " | IP ";
@@ -707,67 +615,49 @@ bool executeCommand(String command, String &response) {
   }
 
   if (command == "tare") {
-    tareLoadCell();
-    response = loadcellReady ? "Waegezelle tariert." : "HX711 nicht bereit.";
-    return loadcellReady;
+    loadcell.tare();
+    response =
+        loadcell.isReady() ? "Waegezelle tariert." : "HX711 nicht bereit.";
+    return loadcell.isReady();
   }
 
   if (command == "cal_zero") {
-    if (!loadcellReady) {
+    if (!loadcell.captureZeroPoint()) {
       response = "HX711 nicht bereit.";
       return false;
     }
-
-    scale.set_scale(loadcellCalibrationFactor);
-    scale.tare(1);
-    calibrationZeroCaptured = true;
-    currentForceNewton = 0.0f;
     response = "Nullpunkt erfasst. Jetzt bekanntes Gewicht anhaengen, Grammwert eingeben und Schritt 2 ausfuehren.";
     return true;
   }
 
   if (parseValueAfterCommand(command, "cal_apply", value)) {
-    if (!loadcellReady) {
-      response = "HX711 nicht bereit.";
-      return false;
+    switch (loadcell.calibrateWithMass(value)) {
+      case LoadCell::CalError::NotReady:
+        response = "HX711 nicht bereit.";
+        return false;
+      case LoadCell::CalError::ZeroNotCaptured:
+        response =
+            "Bitte zuerst Schritt 1 mit unbelasteter Waegezelle ausfuehren.";
+        return false;
+      case LoadCell::CalError::InvalidMass:
+        response = "Kalibriergewicht muss groesser als 0 g sein.";
+        return false;
+      case LoadCell::CalError::ReadFailed:
+        response = "Kalibrierwert konnte nicht gelesen werden.";
+        return false;
+      case LoadCell::CalError::ZeroFactor:
+        response = "Kalibrierung fehlgeschlagen: Faktor ist 0.";
+        return false;
+      case LoadCell::CalError::None:
+        break;
     }
-    if (!calibrationZeroCaptured) {
-      response = "Bitte zuerst Schritt 1 mit unbelasteter Waegezelle ausfuehren.";
-      return false;
-    }
-    if (value <= 0.0f) {
-      response = "Kalibriergewicht muss groesser als 0 g sein.";
-      return false;
-    }
-
-    delay(CALIBRATION_SETTLE_MS);
-
-    long averageRaw = 0;
-    if (!readAverageRawValue(CALIBRATION_CAPTURE_SAMPLES, averageRaw)) {
-      response = "Kalibrierwert konnte nicht gelesen werden.";
-      return false;
-    }
-
-    const long offset = scale.get_offset();
-    const float newFactor =
-        static_cast<float>(averageRaw - offset) / value;
-
-    if (newFactor == 0.0f) {
-      response = "Kalibrierung fehlgeschlagen: Faktor ist 0.";
-      return false;
-    }
-
-    saveCalibrationToPreferences(newFactor);
-    scale.set_scale(loadcellCalibrationFactor);
-    currentForceNewton = 0.0f;
-    calibrationZeroCaptured = false;
     response = "Kalibrierung gespeichert. Neuer Faktor: " +
-               String(loadcellCalibrationFactor, 6);
+               String(loadcell.calibrationFactor(), 6);
     return true;
   }
 
   if (command == "force") {
-    response = "Kraft aktuell: " + String(currentForceNewton, 2) + " N.";
+    response = "Kraft aktuell: " + String(loadcell.forceNewton(), 2) + " N.";
     return true;
   }
 
@@ -895,28 +785,6 @@ void setupWiFi() {
   Serial.println(WiFi.softAPIP());
 }
 
-void setupLoadCell() {
-  scale.begin(LOADCELL_DOUT_PIN, LOADCELL_SCK_PIN);
-
-  if (!scale.wait_ready_timeout(2000)) {
-    Serial.println("HX711 nicht bereit. Kraftmessung bleibt deaktiviert.");
-    loadcellReady = false;
-    return;
-  }
-
-  loadCalibrationFromPreferences();
-  scale.set_scale(loadcellCalibrationFactor);
-  scale.tare(1);
-  loadcellReady = true;
-  if (calibrationValid) {
-    Serial.print("HX711 bereit. Kalibrierfaktor geladen: ");
-    Serial.println(loadcellCalibrationFactor, 6);
-  } else {
-    Serial.println("HX711 bereit. Noch keine gueltige Kalibrierung gespeichert.");
-  }
-  Serial.println("Tara gesetzt.");
-}
-
 }  // namespace
 
 void setup() {
@@ -929,20 +797,20 @@ void setup() {
   Serial.println("ESP32 Pruefmaschinen-Steuerung gestartet.");
   Serial.println("Zwei Motoren laufen synchron ueber dieselben STEP/DIR/EN-Signale.");
 
-  setupLoadCell();
+  loadcell.begin();
   setupWiFi();
   setupWebServer();
 }
 
 void loop() {
   server.handleClient();
-  updateForceMeasurement();
+  loadcell.poll();
   handleSerialInput();
 
   const unsigned long now = millis();
   if (now - lastStatusMs >= STATUS_INTERVAL_MS) {
     lastStatusMs = now;
-    if (motion.isEnabled() || loadcellReady) {
+    if (motion.isEnabled() || loadcell.isReady()) {
       printPosition();
     }
   }

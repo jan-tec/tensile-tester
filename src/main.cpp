@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <AccelStepper.h>
+#include <FirmwareCore.h>
 #include <HX711.h>
 #include <Preferences.h>
 #include <WebServer.h>
@@ -13,18 +14,11 @@ constexpr uint8_t EN_PIN = 5;
 constexpr uint8_t LOADCELL_DOUT_PIN = 32;
 constexpr uint8_t LOADCELL_SCK_PIN = 33;
 
-constexpr long MOTOR_FULL_STEPS_PER_REV = 200;
-constexpr float GEAR_RATIO = 13.73f;
-constexpr uint8_t MICROSTEPS = 8;
-
-constexpr float OUTPUT_STEPS_PER_REV =
-    MOTOR_FULL_STEPS_PER_REV * GEAR_RATIO * MICROSTEPS;
+// Gear/feed math + clamp live in lib/FirmwareCore (host-unit-tested);
+// this file keeps runtime config defaults only.
 constexpr float DEFAULT_OUTPUT_RPM = 5.0f;
 constexpr float DEFAULT_OUTPUT_ACCEL_RPM_PER_S = 20.0f;
 constexpr float DEFAULT_MOVE_MM_PER_MIN = 12.0f;
-constexpr float MIN_MOVE_MM_PER_MIN = 0.5f;
-constexpr float MAX_MOVE_MM_PER_MIN = 60.0f;
-constexpr float SPINDLE_PITCH_MM_PER_REV = 2.0f;
 constexpr unsigned long STATUS_INTERVAL_MS = 500;
 constexpr unsigned long HX711_SAMPLE_INTERVAL_MS = 100;
 constexpr float GRAVITY = 9.80665f;
@@ -569,21 +563,9 @@ bool readAverageRawValue(uint8_t sampleCount, long &averageRaw) {
   return true;
 }
 
-// jane: one helper for speed and acceleration - per-rpm scaling is identical
-// (steps/s vs steps/s^2 differ only in the input unit). Add a second helper
-// only if the math diverges.
-float outputRpmToStepsPerSecond(float rpm) {
-  return (rpm * OUTPUT_STEPS_PER_REV) / 60.0f;
-}
-
-long outputTurnsToSteps(float turns) {
-  return lroundf(turns * OUTPUT_STEPS_PER_REV);
-}
-
-long spindleMmToSteps(float mm) {
-  return outputTurnsToSteps(mm / SPINDLE_PITCH_MM_PER_REV);
-}
-
+// Gear/feed conversion (outputRpmToStepsPerSecond, outputTurnsToSteps,
+// spindleMmToSteps, rpm/feed, clampFeedMmPerMin) lives in lib/FirmwareCore,
+// unit-tested on the host.
 long currentStepperPosition() {
   portENTER_CRITICAL(&motionMux);
   const long position = stepper.currentPosition();
@@ -602,24 +584,6 @@ float currentPositionMm() {
   const float turns =
       static_cast<float>(currentStepperPosition()) / OUTPUT_STEPS_PER_REV;
   return turns * SPINDLE_PITCH_MM_PER_REV;
-}
-
-float rpmToFeedMmPerMin(float rpm) {
-  return rpm * SPINDLE_PITCH_MM_PER_REV;
-}
-
-float feedMmPerMinToRpm(float mmPerMin) {
-  return mmPerMin / SPINDLE_PITCH_MM_PER_REV;
-}
-
-float clampFeedMmPerMin(float mmPerMin) {
-  if (mmPerMin < MIN_MOVE_MM_PER_MIN) {
-    return MIN_MOVE_MM_PER_MIN;
-  }
-  if (mmPerMin > MAX_MOVE_MM_PER_MIN) {
-    return MAX_MOVE_MM_PER_MIN;
-  }
-  return mmPerMin;
 }
 
 void applyMotionSettings() {

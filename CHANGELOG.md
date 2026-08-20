@@ -13,6 +13,11 @@ and API).
 
 ### Added
 
+- Host-side unit test foundation for full TDD: `lib/FirmwareCore/`
+  (platform-independent gear/feed math, extracted from `src/main.cpp`),
+  `test/test_gear_math.cpp` (10 Unity tests, `env:native`), and a separate CI
+  `test` job running `pio test -e native` next to the `build` job (2026-08-20,
+  #5)
 - Initial PlatformIO project for ESP32 (`esp32dev`, Arduino framework)
   (2026-04-12, `283123b`, `5ac554a`)
 - Debug sketches in `standalone_tests/`: LED blink, HX711 raw measurements

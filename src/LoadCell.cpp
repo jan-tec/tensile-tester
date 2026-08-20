@@ -5,7 +5,8 @@
 // flow, NVS keys.
 #include "LoadCell.h"
 
-void LoadCell::begin() {
+void LoadCell::begin(Settings &settings) {
+  settings_ = &settings;
   scale_.begin(kDoutPin, kSckPin);
 
   if (!scale_.wait_ready_timeout(2000)) {
@@ -14,7 +15,9 @@ void LoadCell::begin() {
     return;
   }
 
-  loadCalibrationFromPreferences();
+  const Settings::Calibration calibration = settings_->loadCalibration();
+  calibrationValid_ = calibration.valid;
+  calibrationFactor_ = calibration.factor;
   scale_.set_scale(calibrationFactor_);
   scale_.tare(1);
   ready_ = true;
@@ -111,35 +114,13 @@ LoadCell::CalError LoadCell::calibrateWithMass(float grams) {
     return CalError::ZeroFactor;
   }
 
-  saveCalibrationToPreferences(newFactor);
+  settings_->saveCalibration(newFactor);
+  calibrationFactor_ = newFactor;
+  calibrationValid_ = true;
   scale_.set_scale(calibrationFactor_);
   forceNewton_ = 0.0f;
   calibrationZeroCaptured_ = false;
   return CalError::None;
-}
-
-void LoadCell::loadCalibrationFromPreferences() {
-  preferences_.begin(kPreferencesNamespace, true);
-  calibrationValid_ =
-      preferences_.getBool(kPrefCalibrationValid, false);
-  calibrationFactor_ = preferences_.getFloat(
-      kPrefCalibrationFactor, kDefaultCalibrationFactor);
-  preferences_.end();
-
-  if (!calibrationValid_ || calibrationFactor_ == 0.0f) {
-    calibrationValid_ = false;
-    calibrationFactor_ = kDefaultCalibrationFactor;
-  }
-}
-
-void LoadCell::saveCalibrationToPreferences(float factor) {
-  preferences_.begin(kPreferencesNamespace, false);
-  preferences_.putFloat(kPrefCalibrationFactor, factor);
-  preferences_.putBool(kPrefCalibrationValid, true);
-  preferences_.end();
-
-  calibrationFactor_ = factor;
-  calibrationValid_ = true;
 }
 
 bool LoadCell::readAverageRawValue(uint8_t sampleCount, long &averageRaw) {

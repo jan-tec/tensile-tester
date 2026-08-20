@@ -5,6 +5,7 @@
 
 #include "LoadCell.h"
 #include "Motion.h"
+#include "Settings.h"
 
 namespace {
 // Gear/feed math + clamp live in lib/FirmwareCore (host-unit-tested);
@@ -480,6 +481,7 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
 </html>
 )HTML";
 
+Settings settings;
 Motion motion;
 LoadCell loadcell;
 WebServer server(80);
@@ -797,7 +799,7 @@ void setup() {
   Serial.println("ESP32 Pruefmaschinen-Steuerung gestartet.");
   Serial.println("Zwei Motoren laufen synchron ueber dieselben STEP/DIR/EN-Signale.");
 
-  loadcell.begin();
+  loadcell.begin(settings);
   setupWiFi();
   setupWebServer();
 }

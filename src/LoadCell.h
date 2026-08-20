@@ -1,15 +1,17 @@
-// HX711 loadcell module (M0-T004).
+// HX711 loadcell module (M0-T004, NVS via Settings since M0-T005).
 //
 // Owns the HX711 driver, the 10 Hz sample + low-pass force filter, the
-// NVS calibration (namespace "testmachine", keys lc_valid / lc_factor),
-// and the two-step calibration (zero-point capture + known-mass apply).
-// Command handlers in main.cpp own the response strings; this class owns
-// the state and the compute.
+// in-memory calibration state, and the two-step calibration (zero-point
+// capture + known-mass apply). NVS persistence (namespace "testmachine",
+// keys lc_valid / lc_factor) lives in Settings. Command handlers in
+// main.cpp own the response strings; this class owns the state and the
+// compute.
 #pragma once
 
 #include <Arduino.h>
 #include <HX711.h>
-#include <Preferences.h>
+
+#include "Settings.h"
 
 class LoadCell {
  public:
@@ -22,9 +24,9 @@ class LoadCell {
     ZeroFactor,
   };
 
-  // HX711 begin + wait_ready(2000), NVS calibration load, set_scale,
-  // tare(1). Prints the legacy boot diagnostics.
-  void begin();
+  // HX711 begin + wait_ready(2000), NVS calibration load via settings,
+  // set_scale, tare(1). Prints the legacy boot diagnostics.
+  void begin(Settings &settings);
 
   bool isReady();
   float forceNewton();
@@ -47,8 +49,6 @@ class LoadCell {
   CalError calibrateWithMass(float grams);
 
  private:
-  void loadCalibrationFromPreferences();
-  void saveCalibrationToPreferences(float factor);
   bool readAverageRawValue(uint8_t sampleCount, long &averageRaw);
 
   static constexpr uint8_t kDoutPin = 32;
@@ -56,20 +56,16 @@ class LoadCell {
   static constexpr unsigned long kSampleIntervalMs = 100;
   static constexpr float kGravity = 9.80665f;
   static constexpr float kFilterAlpha = 0.18f;
-  static constexpr const char *kPreferencesNamespace = "testmachine";
-  static constexpr const char *kPrefCalibrationValid = "lc_valid";
-  static constexpr const char *kPrefCalibrationFactor = "lc_factor";
-  static constexpr float kDefaultCalibrationFactor = 1.0f;
   static constexpr uint8_t kCalibrationCaptureSamples = 10;
   static constexpr unsigned long kCalibrationSettleMs = 1200;
 
   HX711 scale_;
-  Preferences preferences_;
+  Settings *settings_ = nullptr;
 
   unsigned long lastSampleMs_ = 0;
   float forceNewton_ = 0.0f;
   bool ready_ = false;
   bool calibrationValid_ = false;
-  float calibrationFactor_ = kDefaultCalibrationFactor;
+  float calibrationFactor_ = Settings::kDefaultCalibrationFactor;  // default until begin() loads NVS
   bool calibrationZeroCaptured_ = false;
 };

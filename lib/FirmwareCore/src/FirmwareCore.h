@@ -34,3 +34,33 @@ float feedMmPerMinToRpm(float mmPerMin);
 
 // Clamp a feed speed into [MIN_MOVE_MM_PER_MIN, MAX_MOVE_MM_PER_MIN].
 float clampFeedMmPerMin(float mmPerMin);
+
+// ---------------------------------------------------------------------------
+// Command parsing (pure). Mirrors the legacy String-based dispatch in
+// src/main.cpp, quirks included (case-sensitive names, prefix matching
+// without word boundary, non-numeric value -> 0.0). See
+// test/test_command_parser.cpp for the pinned behavior.
+// ---------------------------------------------------------------------------
+
+// Value-less command names (exact match after trimming, case-sensitive).
+enum class Command {
+  Unknown,
+  Enable,   // "en"
+  Disable,  // "off"
+  Zero,     // "zero"
+  Tare,     // "tare"
+  Force,    // "force"
+  Stop,     // "stop"
+  Pos,      // "pos"
+  CalZero,  // "cal_zero"
+  JogUp,    // "jog up"
+  JogDown,  // "jog down"
+};
+
+Command commandFromName(const char* name);
+
+// Parse the number after `prefix` in `command` (caller must pass the already
+// trimmed command, as the legacy dispatch does). Returns false when the
+// prefix does not match or no number remains; non-numeric input yields 0.0
+// with a true return (the caller rejects it via its > 0 check).
+bool parseCommandValue(const char* command, const char* prefix, float* value);

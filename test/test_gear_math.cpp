@@ -1,11 +1,12 @@
 // Unit tests for FirmwareCore motion math (host side, env:native).
 // Run: pio test -e native
+//
+// All test files in test/ are linked into ONE binary (PlatformIO default),
+// so each file exposes a run*Tests() function and test/test_main.cpp holds
+// the single main()/setUp()/tearDown().
 #include <unity.h>
 
 #include <FirmwareCore.h>
-
-void setUp(void) {}
-void tearDown(void) {}
 
 void test_output_steps_per_revolution(void) {
   // 200 steps/rev x 13.73 gear x 8 microsteps = 21968 steps/spindle rev.
@@ -66,8 +67,7 @@ void test_clamp_feed_inside_range_is_unchanged(void) {
   TEST_ASSERT_FLOAT_WITHIN(0.0f, 12.0f, clampFeedMmPerMin(12.0f));
 }
 
-int main(void) {
-  UNITY_BEGIN();
+void runGearMathTests() {
   RUN_TEST(test_output_steps_per_revolution);
   RUN_TEST(test_full_spindle_revolution_in_mm_and_steps);
   RUN_TEST(test_half_revolution);
@@ -78,5 +78,4 @@ int main(void) {
   RUN_TEST(test_clamp_feed_below_min);
   RUN_TEST(test_clamp_feed_above_max);
   RUN_TEST(test_clamp_feed_inside_range_is_unchanged);
-  return UNITY_END();
 }

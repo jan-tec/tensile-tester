@@ -124,6 +124,13 @@ mv /tmp/main.cpp.bak src/main.cpp
   umlauts into .cpp/.ini.
 - Remotes: `origin` = satwareAG-ironMike/tensile-tester (mirror),
   `upstream` = jan-tec/tensile-tester (single branch `main`).
+- **`gh` guardrail**: this workstation's shell exports
+  `GITHUB_PERSONAL_ACCESS_TOKEN`, which `gh` prefers over the stored OAuth
+  login and resolves repo context to the `jan-tec` account (verified
+  2026-08-20: a PR was accidentally created in `jan-tec/tensile-tester` and
+  closed immediately). Always pass
+  `--repo satwareAG-ironMike/tensile-tester` (or set `GH_REPO`) on every `gh`
+  command in this repo.
 
 ## Branching & sync model (agreed 2026-08-19)
 

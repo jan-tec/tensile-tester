@@ -3,6 +3,7 @@
 #include <WebServer.h>
 #include <WiFi.h>
 
+#include "Commands.h"
 #include "LoadCell.h"
 #include "Motion.h"
 #include "Settings.h"
@@ -11,7 +12,6 @@ namespace {
 // Gear/feed math + clamp live in lib/FirmwareCore (host-unit-tested);
 // this file keeps runtime config defaults only.
 constexpr unsigned long STATUS_INTERVAL_MS = 500;
-constexpr float JOG_TRAVEL_MM = 1000.0f;
 
 constexpr char WIFI_SSID[] = "ESP32-Testmaschine";
 constexpr char WIFI_PASSWORD[] = "testmaschine";
@@ -484,44 +484,17 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
 Settings settings;
 Motion motion;
 LoadCell loadcell;
+Commands commands(motion, loadcell);
 WebServer server(80);
 
 unsigned long lastStatusMs = 0;
 String serialBuffer;
 
-bool executeCommand(String command, String &response);
-
 // Stepper access lives in Motion (M0-T003); loadcell (HX711, sampling,
-// filter, calibration) lives in LoadCell (M0-T004); gear/feed conversion
-// (outputRpmToStepsPerSecond, outputTurnsToSteps, spindleMmToSteps,
-// rpm/feed, clampFeedMmPerMin) lives in lib/FirmwareCore, unit-tested on
-// the host.
-void printPosition() {
-  Serial.print("Position [Schritte]: ");
-  Serial.print(motion.steps());
-  Serial.print(" | Weg [mm]: ");
-  Serial.print(motion.positionMm(), 3);
-  Serial.print(" | Kraft [N]: ");
-  Serial.println(loadcell.forceNewton(), 2);
-}
-
-bool parseValueAfterCommand(const String &command, const char *prefix,
-                            float &value) {
-  if (!command.startsWith(prefix)) {
-    return false;
-  }
-
-  String number = command.substring(strlen(prefix));
-  number.trim();
-  number.replace(',', '.');
-  if (number.isEmpty()) {
-    return false;
-  }
-
-  value = number.toFloat();
-  return true;
-}
-
+// filter, calibration) lives in LoadCell (M0-T004); command policy lives
+// in Commands (M0-T006); gear/feed conversion (outputRpmToStepsPerSecond,
+// outputTurnsToSteps, spindleMmToSteps, rpm/feed, clampFeedMmPerMin)
+// lives in lib/FirmwareCore, unit-tested on the host.
 void handleSerialInput() {
   while (Serial.available() > 0) {
     const char incoming = static_cast<char>(Serial.read());
@@ -532,12 +505,10 @@ void handleSerialInput() {
 
     if (incoming == '\n') {
       String response;
-      const bool ok = executeCommand(serialBuffer, response);
+      const bool ok = commands.execute(serialBuffer, response);
       Serial.println(response);
       if (!ok) {
-        Serial.println(
-            "Verfuegbare Kommandos: en, off, zero, tare, force, pos, stop, "
-            "rpm, acc, feed, move, turn, jog up, jog down, cal_zero, cal_apply");
+        Serial.println(Commands::helpText());
       }
       serialBuffer = "";
       continue;
@@ -589,161 +560,6 @@ String jsonMessage(bool ok, const String &message) {
   return json;
 }
 
-bool executeCommand(String command, String &response) {
-  command.trim();
-  if (command.isEmpty()) {
-    response = "Leeres Kommando.";
-    return false;
-  }
-
-  float value = 0.0f;
-
-  if (command == "en") {
-    motion.enable();
-    response = "Beide Treiber aktiviert.";
-    return true;
-  }
-
-  if (command == "off") {
-    motion.disable();
-    response = "Beide Treiber deaktiviert.";
-    return true;
-  }
-
-  if (command == "zero") {
-    motion.zero();
-    response = "Achsposition auf 0 gesetzt.";
-    return true;
-  }
-
-  if (command == "tare") {
-    loadcell.tare();
-    response =
-        loadcell.isReady() ? "Waegezelle tariert." : "HX711 nicht bereit.";
-    return loadcell.isReady();
-  }
-
-  if (command == "cal_zero") {
-    if (!loadcell.captureZeroPoint()) {
-      response = "HX711 nicht bereit.";
-      return false;
-    }
-    response = "Nullpunkt erfasst. Jetzt bekanntes Gewicht anhaengen, Grammwert eingeben und Schritt 2 ausfuehren.";
-    return true;
-  }
-
-  if (parseValueAfterCommand(command, "cal_apply", value)) {
-    switch (loadcell.calibrateWithMass(value)) {
-      case LoadCell::CalError::NotReady:
-        response = "HX711 nicht bereit.";
-        return false;
-      case LoadCell::CalError::ZeroNotCaptured:
-        response =
-            "Bitte zuerst Schritt 1 mit unbelasteter Waegezelle ausfuehren.";
-        return false;
-      case LoadCell::CalError::InvalidMass:
-        response = "Kalibriergewicht muss groesser als 0 g sein.";
-        return false;
-      case LoadCell::CalError::ReadFailed:
-        response = "Kalibrierwert konnte nicht gelesen werden.";
-        return false;
-      case LoadCell::CalError::ZeroFactor:
-        response = "Kalibrierung fehlgeschlagen: Faktor ist 0.";
-        return false;
-      case LoadCell::CalError::None:
-        break;
-    }
-    response = "Kalibrierung gespeichert. Neuer Faktor: " +
-               String(loadcell.calibrationFactor(), 6);
-    return true;
-  }
-
-  if (command == "force") {
-    response = "Kraft aktuell: " + String(loadcell.forceNewton(), 2) + " N.";
-    return true;
-  }
-
-  if (command == "stop") {
-    motion.stop();
-    response = "Stopp angefordert.";
-    return true;
-  }
-
-  if (command == "pos") {
-    printPosition();
-    response = "Position im Serial Monitor ausgegeben.";
-    return true;
-  }
-
-  if (parseValueAfterCommand(command, "rpm", value)) {
-    if (value <= 0.0f) {
-      response = "RPM muss groesser als 0 sein.";
-      return false;
-    }
-
-    motion.setOutputRpm(value);
-    response = "Drehzahl gesetzt auf " + String(motion.outputRpm(), 2) +
-               " U/min.";
-    return true;
-  }
-
-  if (parseValueAfterCommand(command, "acc", value)) {
-    if (value <= 0.0f) {
-      response = "ACC muss groesser als 0 sein.";
-      return false;
-    }
-
-    motion.setAccelRpmPerS(value);
-    response = "Beschleunigung gesetzt auf " +
-               String(motion.accelRpmPerS(), 2) + " U/min/s.";
-    return true;
-  }
-
-  if (parseValueAfterCommand(command, "feed", value)) {
-    if (value <= 0.0f) {
-      response = "Vorschub muss groesser als 0 sein.";
-      return false;
-    }
-
-    const float clampedFeed = clampFeedMmPerMin(value);
-    motion.setOutputRpm(feedMmPerMinToRpm(clampedFeed));
-    response = "Vorschub gesetzt auf " + String(clampedFeed, 2) + " mm/min.";
-    return true;
-  }
-
-  if (command == "jog up") {
-    motion.startMoveToSteps(static_cast<long>(motion.steps() +
-                                              spindleMmToSteps(JOG_TRAVEL_MM)));
-    response = "Jog nach oben gestartet.";
-    return true;
-  }
-
-  if (command == "jog down") {
-    motion.startMoveToSteps(static_cast<long>(motion.steps() -
-                                              spindleMmToSteps(JOG_TRAVEL_MM)));
-    response = "Jog nach unten gestartet.";
-    return true;
-  }
-
-  if (parseValueAfterCommand(command, "move", value)) {
-    motion.startMoveToSteps(
-        static_cast<long>(motion.steps() + spindleMmToSteps(value)));
-    response = "Relativbewegung gestartet: " + String(value, 3) + " mm.";
-    return true;
-  }
-
-  if (parseValueAfterCommand(command, "turn", value)) {
-    motion.startMoveToSteps(
-        static_cast<long>(motion.steps() + outputTurnsToSteps(value)));
-    response = "Relativbewegung gestartet: " + String(value, 3) +
-               " Umdrehungen.";
-    return true;
-  }
-
-  response = "Unbekanntes Kommando.";
-  return false;
-}
-
 void handleRoot() {
   server.send_P(200, "text/html; charset=utf-8", INDEX_HTML);
 }
@@ -761,7 +577,7 @@ void handleCommandApi() {
 
   String response;
   const String command = server.arg("cmd");
-  const bool ok = executeCommand(command, response);
+  const bool ok = commands.execute(command, response);
   Serial.print("Web-Kommando: ");
   Serial.println(command);
   Serial.println(response);
@@ -813,7 +629,7 @@ void loop() {
   if (now - lastStatusMs >= STATUS_INTERVAL_MS) {
     lastStatusMs = now;
     if (motion.isEnabled() || loadcell.isReady()) {
-      printPosition();
+      commands.printPosition();
     }
   }
 }

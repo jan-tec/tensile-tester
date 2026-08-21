@@ -5,6 +5,8 @@
 // flow, NVS keys.
 #include "LoadCell.h"
 
+#include <FirmwareCore.h>
+
 void LoadCell::begin(Settings &settings) {
   settings_ = &settings;
   scale_.begin(kDoutPin, kSckPin);
@@ -108,10 +110,14 @@ LoadCell::CalError LoadCell::calibrateWithMass(float grams) {
   }
 
   const long offset = scale_.get_offset();
-  const float newFactor = static_cast<float>(averageRaw - offset) / grams;
+  const float newFactor = calibrationFactorFromMass(averageRaw, offset, grams);
 
-  if (newFactor == 0.0f) {
+  const CalibrationVerdict verdict = verifyCalibrationFactor(newFactor);
+  if (verdict == CalibrationVerdict::Zero) {
     return CalError::ZeroFactor;
+  }
+  if (verdict == CalibrationVerdict::Negative) {
+    return CalError::NegativeFactor;
   }
 
   settings_->saveCalibration(newFactor);

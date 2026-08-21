@@ -85,6 +85,9 @@ bool Commands::execute(String command, String &response) {
       case LoadCell::CalError::ZeroFactor:
         response = "Kalibrierung fehlgeschlagen: Faktor ist 0.";
         return false;
+      case LoadCell::CalError::NegativeFactor:
+        response = "Kalibrierung fehlgeschlagen: Faktor negativ (Offset drift?).";
+        return false;
       case LoadCell::CalError::None:
         break;
     }

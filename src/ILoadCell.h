@@ -20,6 +20,7 @@ struct ILoadCell {
     InvalidMass,
     ReadFailed,
     ZeroFactor,
+    NegativeFactor,
   };
 
   virtual ~ILoadCell() = default;

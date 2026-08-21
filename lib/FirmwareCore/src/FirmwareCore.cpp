@@ -38,6 +38,22 @@ float clampFeedMmPerMin(float mmPerMin) {
   return mmPerMin;
 }
 
+float calibrationFactorFromMass(long averageRaw, long offset, float grams) {
+  return static_cast<float>(averageRaw - offset) / grams;
+}
+
+CalibrationVerdict verifyCalibrationFactor(float factor) {
+  if (factor == 0.0f) {
+    return CalibrationVerdict::Zero;
+  }
+  // NQP #46 (fix): legacy accepted negative factors; they are rejected
+  // now (kept separate from Zero so the responses stay distinct).
+  if (factor < 0.0f) {
+    return CalibrationVerdict::Negative;
+  }
+  return CalibrationVerdict::Valid;
+}
+
 namespace {
 
 constexpr char kCommandWhitespace[] = " \t\r\n";

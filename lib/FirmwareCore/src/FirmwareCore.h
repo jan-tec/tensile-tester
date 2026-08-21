@@ -36,6 +36,28 @@ float feedMmPerMinToRpm(float mmPerMin);
 float clampFeedMmPerMin(float mmPerMin);
 
 // ---------------------------------------------------------------------------
+// Calibration compute (pure). Extracted from LoadCell::calibrateWithMass
+// for host-side unit tests (NQP #46).
+// ---------------------------------------------------------------------------
+
+// Calibration factor for a known mass: (averageRaw - offset) / grams.
+// Caller guarantees grams > 0 (InvalidMass check in LoadCell).
+// Named *FromMass* to avoid hiding LoadCell::calibrationFactor().
+float calibrationFactorFromMass(long averageRaw, long offset, float grams);
+
+// Verdict on a computed calibration factor. Zero keeps the legacy
+// rejection; negative is rejected per NQP #46 (offset drift or a
+// disturbed part between cal_zero and cal_apply would otherwise be
+// persisted and invert every force reading).
+enum class CalibrationVerdict {
+  Valid,
+  Zero,
+  Negative,
+};
+
+CalibrationVerdict verifyCalibrationFactor(float factor);
+
+// ---------------------------------------------------------------------------
 // Command parsing (pure). Mirrors the legacy String-based dispatch in
 // src/main.cpp, quirks included (case-sensitive names, prefix matching
 // without word boundary, non-numeric value -> 0.0). See

@@ -8,8 +8,17 @@ WiFi-AP web UI, serial CLI.
 
 | Path | Purpose |
 |------|---------|
-| `src/main.cpp` | Hardware adapter (~1050 lines): firmware + web UI inlined as `INDEX_HTML` PROGMEM string |
-| `lib/FirmwareCore/` | Pure C++ gear/feed math (no Arduino) - unit-tested on the host |
+| `src/main.cpp` | Composition root (31 lines): global module wiring + `setup()`/`loop()` delegation to App |
+| `src/App.{h,cpp}` | Orchestration: boot sequence (Serial, Motion, banner, LoadCell, Web) + main loop |
+| `src/Commands.{h,cpp}` | Command policy: `execute()` shared by serial and Web; FirmwareCore parser via `String` adapter |
+| `src/SerialCli.{h,cpp}` | Serial 115200 input loop (line buffer, CR skip, LF dispatch, help on unknown) |
+| `src/WebUi.{h,cpp}` | WebServer, softAP, routes `/`, `/api/status`, `/api/command`, `statusJson` |
+| `src/UiHtml.h` | Pure data: the PROGMEM `INDEX_HTML` asset (no logic, SC-001) |
+| `src/Motion.{h,cpp}` | AccelStepper (DRIVER), motor task (core 0), `portMUX`, enable/disable, moves, rpm/accel |
+| `src/LoadCell.{h,cpp}` | HX711 10 Hz sampling + low-pass (0.18), tare, two-step calibration |
+| `src/Settings.{h,cpp}` | NVS Preferences namespace `testmachine`: calibration factor + valid flag |
+| `src/IMotion.h`, `src/ILoadCell.h` | Contracts (FR-007): App depends on them, Motion/LoadCell implement them |
+| `lib/FirmwareCore/` | Pure C++ gear/feed math + command parser (no Arduino) - unit-tested on the host |
 | `test/` | Unity host tests (`pio test -e native`) |
 | `standalone_tests/` | Debug sketches (blink, raw loadcell, motor menu) - NOT built automatically (see below) |
 | `include/` | Empty scaffolding, README only |
@@ -20,7 +29,7 @@ to `main` and on every PR: `build` (`pio run -e esp32dev`) and `test`
 
 IDE C++ LSP will report `Arduino.h` not found and friends - false positive,
 the ESP toolchain headers are only visible to PlatformIO. Ignore LSP
-diagnostics in `src/main.cpp`; trust `pio run` output instead.
+diagnostics in `src/*.cpp`; trust `pio run` output instead.
 
 ## Build / flash
 
@@ -61,9 +70,10 @@ pio device monitor -p <port> -b 115200
 2. **RED:** add the failing test first -> `pio test -e native`.
 3. **GREEN:** minimal implementation until `pio test -e native` is green.
 4. **REFACTOR:** keep `pio test -e native` AND `pio run -e esp32dev` green.
-5. `src/main.cpp` stays the hardware adapter (pins, FreeRTOS tasks, NVS,
-   driver I/O, WebServer); hardware-dependent behavior is verified by target
-   smoke test, not by host mocks.
+5. Hardware-dependent code stays in the `src/` modules (Motion: pins +
+   FreeRTOS task, LoadCell: driver I/O, Settings: NVS, WebUi: WebServer);
+   hardware-dependent behavior is verified by target smoke test, not by
+   host mocks.
 
 **Host vs target boundary:** unit-test state machines and decisions
 synchronously on the host; real FreeRTOS tasks, portMUX exclusion,
@@ -78,9 +88,13 @@ Rule: local unit tests + local build green **before** opening a PR; the CI
 
 ## Running a standalone test (gotcha)
 
-PlatformIO compiles everything in `src/`; `src/main.cpp` is currently the
-only file there, so a debug sketch is NOT built automatically. To flash one,
-swap it into `src/` temporarily - and NEVER commit the swapped state:
+PlatformIO compiles everything in `src/`, so a debug sketch is NOT built
+automatically. To flash one, swap it into `src/main.cpp` temporarily - and
+NEVER commit the swapped state. The module `.cpp` files stay and compile
+alongside (they are self-contained TUs and reference nothing defined in
+main.cpp), so the image grows a bit - harmless for a bench sketch. If a
+sketch collides with a module symbol, move the offending module file aside
+too:
 
 ```bash
 mv src/main.cpp /tmp/main.cpp.bak
@@ -89,28 +103,35 @@ pio run -e esp32dev -t upload
 mv /tmp/main.cpp.bak src/main.cpp
 ```
 
-## Architecture (read before editing main.cpp)
+## Architecture (read before editing src/)
 
+- **Module structure (M0, 2026-08):** `src/` is modular (see Layout).
+  `main.cpp` is a composition root; `App` orchestrates; `Commands::execute()`
+  is the single command policy. `App` depends on the `IMotion`/`ILoadCell`
+  contracts (FR-007). No dynamic allocation anywhere (no `new`/`delete`).
 - **WiFi AP mode only**, hardcoded SSID `ESP32-Testmaschine` / `testmaschine`.
   Web UI at the softAP IP (default 192.168.4.1; exact IP printed to serial and
   in `/api/status` field `network`).
-- **Two control paths share `executeCommand()`**: serial CLI (115200) and
-  Web API `GET /api/command?cmd=<string>` (yes, commands are GET). Add a
-  command once, both paths get it. Commands: `en` `off` `zero` `tare` `pos`
-  `force` `stop` `rpm <U/min>` `acc <U/min/s>` `feed <mm/min>` `move <mm>`
-  `turn <revs>` `jog up|down` `cal_zero` `cal_apply <grams>`.
-- **Stepper runs in a dedicated FreeRTOS task on core 0**; every stepper
-  access is wrapped in `portMUX` critical sections (`motionMux`). Never block
+- **Two control paths share `Commands::execute()`**: serial CLI (115200,
+  input loop in `SerialCli`) and Web API `GET /api/command?cmd=<string>`
+  (yes, commands are GET, routes in `WebUi`). Add a command once, both paths
+  get it. Commands: `en` `off` `zero` `tare` `pos` `force` `stop` `rpm <U/min>`
+  `acc <U/min/s>` `feed <mm/min>` `move <mm>` `turn <revs>` `jog up|down`
+  `cal_zero` `cal_apply <grams>`.
+- **Stepper runs in a dedicated FreeRTOS task on core 0 (inside `Motion`)**;
+  every stepper access is wrapped in `portMUX` critical sections. Never block
   inside them. Two physical motors are driven synchronously from the same
   STEP/DIR/EN signals.
 - Gear math (200 steps/rev x 13.73 gear x 8 microsteps = 21968 steps per
-  spindle revolution, spindle pitch 2 mm/rev) lives in `lib/FirmwareCore/`,
-  unit-tested on the host. Keep it in sync if the hardware changes.
-- Loadcell: HX711 on GPIO 32/33, sampled at 10 Hz in the loop task,
-  low-pass filtered (alpha 0.18). Calibration factor + valid flag persist in
-  NVS Preferences namespace `testmachine`.
-- The web UI is the PROGMEM string `INDEX_HTML` in main.cpp. Any UI change is
-  a firmware change: rebuild, reflash, then the browser must reload.
+  spindle revolution, spindle pitch 2 mm/rev) and the command parser live in
+  `lib/FirmwareCore/`, unit-tested on the host. Keep the gear constants in
+  sync if the hardware changes.
+- Loadcell (`LoadCell`): HX711 on GPIO 32/33, sampled at 10 Hz in the loop
+  task, low-pass filtered (alpha 0.18). Calibration factor + valid flag
+  persist in NVS Preferences namespace `testmachine` (`Settings`).
+- The web UI is the PROGMEM string `INDEX_HTML` in `src/UiHtml.h` (served by
+  `WebUi`). Any UI change is a firmware change: rebuild, reflash, then the
+  browser must reload.
 - The TMC2209 driver runs plain STEP/DIR/EN via AccelStepper `DRIVER` mode.
   No TMC library is declared in `platformio.ini` (the formerly listed
   TMCStepper/TMC2209 lib_deps were never included and have been removed).

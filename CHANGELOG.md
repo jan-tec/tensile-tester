@@ -13,6 +13,19 @@ and API).
 
 ### Added
 
+- M0 module split (2026-08-19 to 21, #8-#17): `src/` is modular: `App`
+  (orchestration), `Commands` (shared command policy), `SerialCli` (serial
+  input loop), `WebUi` (softAP + routes), `Motion` (stepper task), `LoadCell`
+  (HX711 sampling + calibration), `Settings` (NVS), `UiHtml.h` (PROGMEM UI
+  asset); `main.cpp` reduced from ~1050 lines to a 31-line composition root
+- `IMotion`/`ILoadCell` contracts (FR-007): `App` is reference-injected via
+  the interfaces; zero dynamic allocation verified (no `new`/`delete`)
+  (2026-08-21, #17)
+- Command parser in `lib/FirmwareCore/` (host-tested): `commandFromName()`
+  + `parseCommandValue()`; three legacy dispatch quirks pinned in host tests
+  and tracked under the No-Quirk Policy: #41 (case-sensitive command names),
+  #42 (no word boundary in prefix dispatch), #43 (value parse accepts
+  garbage / truncates) (2026-08-21, #9)
 - Host-side unit test foundation for full TDD: `lib/FirmwareCore/`
   (platform-independent gear/feed math, extracted from `src/main.cpp`),
   `test/test_gear_math.cpp` (10 Unity tests, `env:native`), and a separate CI
@@ -37,6 +50,13 @@ and API).
   with factor persisted in NVS (Preferences namespace `testmachine`) and
   reloaded at boot; jog buttons and `jog up` / `jog down` commands (relative
   1000 mm travel) (2026-04-14, `f7ce4b4`)
+
+### Changed
+
+- Behavior-preserving refactor of the monolithic `src/main.cpp` into the M0
+  modules above (T002-T010): serial command set, Web API, boot log, and UI
+  byte-identical; each module verified by host tests + target smoke (serial
+  full command set, Web curl + browser render) (2026-08-21, #8)
 
 ### Removed
 

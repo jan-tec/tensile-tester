@@ -14,7 +14,7 @@ void App::begin() {
 
   // M1: blocking startup selftest (FR-007 boot log); must finish before
   // the Web UI answers so /api/status can already report the checks.
-  diagnostics_.runBootSelfTest(settings_, motion_);
+  diagnostics_.runBootSelfTest(settings_, loadcell_, motion_);
 
   webUi_.begin();
 }

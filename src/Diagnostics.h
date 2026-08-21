@@ -12,6 +12,7 @@
 
 #include "ErrorCode.h"
 #include "FirmwareCore.h"
+#include "ILoadCell.h"
 #include "IMotion.h"
 #include "Settings.h"
 
@@ -20,11 +21,12 @@ constexpr const char *kFwVersion = "0.4.0";
 
 class Diagnostics {
  public:
-  // Blocking boot selftest (T004: BOARD + NVS; T005/T006 add HX711/MOTOR).
-  // Prints the BOOT line, runs the checks, prints CHECK/STATE lines,
-  // dispatches the results into the DeviceModel, and disables the motor
-  // driver on every fault path (FR-001). Budget: <= 5 s (NFR).
-  void runBootSelfTest(Settings &settings, IMotion &motion);
+  // Blocking boot selftest (T004: BOARD + NVS; T005: HX711; T006 adds
+  // MOTOR; T007 adds POWER). Prints the BOOT line, runs the checks,
+  // prints CHECK/STATE lines, dispatches the results into the
+  // DeviceModel, and disables the motor driver on every fault path
+  // (FR-001). Budget: <= 5 s (NFR).
+  void runBootSelfTest(Settings &settings, ILoadCell &loadcell, IMotion &motion);
 
   DeviceModel &model() { return model_; }
   const DeviceModel &model() const { return model_; }
@@ -34,9 +36,12 @@ class Diagnostics {
 
  private:
   static constexpr size_t kMaxChecks = 5;  // FR-002 check set size
+  static constexpr unsigned long kHx711WaitMs = 1000;   // FR-006 wait_ready
+  static constexpr unsigned long kHx711VarianceMs = 500;  // FR-006 window
 
   CheckResult checkBoard();
   CheckResult checkNvs(Settings &settings);
+  CheckResult checkHx711(ILoadCell &loadcell);
   void record(const CheckResult &result);
   void dispatchTracked(DeviceEvent event, uint16_t code = 0);
   void printCheck(const CheckResult &result);

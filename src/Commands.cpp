@@ -11,7 +11,11 @@ void Commands::printPosition() {
   Serial.print(" | Weg [mm]: ");
   Serial.print(motion_.positionMm(), 3);
   Serial.print(" | Kraft [N]: ");
-  Serial.println(loadcell_.forceNewton(), 2);
+  if (loadcell_.isReady()) {
+    Serial.println(loadcell_.forceNewton(), 2);
+  } else {
+    Serial.println("n/a");  // HX711 not ready: no force reading (M1 T005)
+  }
 }
 
 ParseResult Commands::parseValueAfterCommand(const String &command,
@@ -109,7 +113,11 @@ bool Commands::execute(String command, String &response) {
   }
 
   if (named == Command::Force) {
-    response = "Kraft aktuell: " + String(loadcell_.forceNewton(), 2) + " N.";
+    if (loadcell_.isReady()) {
+      response = "Kraft aktuell: " + String(loadcell_.forceNewton(), 2) + " N.";
+    } else {
+      response = "Kraft: n/a (HX711 nicht bereit).";
+    }
     return true;
   }
 

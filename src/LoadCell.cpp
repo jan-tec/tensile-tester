@@ -40,6 +40,18 @@ float LoadCell::forceNewton() {
   return forceNewton_;
 }
 
+bool LoadCell::waitReady(unsigned long timeoutMs) {
+  return scale_.wait_ready_timeout(static_cast<unsigned int>(timeoutMs));
+}
+
+bool LoadCell::rawSample(int32_t &raw) {
+  if (!scale_.is_ready()) {
+    return false;
+  }
+  raw = static_cast<int32_t>(scale_.read());
+  return true;
+}
+
 bool LoadCell::calibrationValid() {
   return calibrationValid_;
 }

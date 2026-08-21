@@ -380,7 +380,9 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
         const data = await response.json();
         statusFields.driverState.textContent = data.driverEnabled ? "aktiv" : "aus";
         statusFields.motionState.textContent = data.running ? "laeuft" : "bereit";
-        statusFields.forceValue.textContent = Number(data.forceNewton).toFixed(2) + " N";
+        statusFields.forceValue.textContent = typeof data.forceNewton === "number"
+          ? data.forceNewton.toFixed(2) + " N"
+          : "n/a";
         statusFields.positionValue.textContent = Number(data.positionMm).toFixed(3) + " mm";
         statusFields.feedValue.textContent = Number(data.feedMmPerMin).toFixed(2) + " mm/min";
         statusFields.wifiInfo.textContent = data.network;
@@ -391,7 +393,9 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
           statusFields.feedInput.value = Number(data.feedMmPerMin).toFixed(2);
         }
 
-        forceHistory.push(Number(data.forceNewton));
+        if (typeof data.forceNewton === "number") {
+          forceHistory.push(data.forceNewton);
+        }
         while (forceHistory.length > maxSamples) {
           forceHistory.shift();
         }

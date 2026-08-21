@@ -10,6 +10,8 @@
 // and is part of the behavior any implementation must promise.
 #pragma once
 
+#include <cstdint>
+
 #include "Settings.h"
 
 struct ILoadCell {
@@ -32,6 +34,12 @@ struct ILoadCell {
   virtual void poll() = 0;
   virtual bool isReady() = 0;
   virtual float forceNewton() = 0;
+
+  // Selftest accessors (M1 FR-006): explicit-timeout wait_ready and a
+  // single raw 24-bit sample. Independent of the isReady() state, which
+  // belongs to begin()/poll(); the selftest reports via CheckResult.
+  virtual bool waitReady(unsigned long timeoutMs) = 0;
+  virtual bool rawSample(int32_t &raw) = 0;
 
   // Tare: zero the filtered output (no-op when not ready).
   virtual void tare() = 0;

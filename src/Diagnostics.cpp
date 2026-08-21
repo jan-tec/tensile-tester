@@ -48,7 +48,8 @@ const char *resetReasonName(esp_reset_reason_t reason) {
 
 }  // namespace
 
-void Diagnostics::runBootSelfTest(Settings &settings, IMotion &motion) {
+void Diagnostics::runBootSelfTest(Settings &settings, ILoadCell &loadcell,
+                                  IMotion &motion) {
   Serial.print(F("BOOT fw="));
   Serial.print(kFwVersion);
   Serial.print(F(" git="));
@@ -59,6 +60,7 @@ void Diagnostics::runBootSelfTest(Settings &settings, IMotion &motion) {
   dispatchTracked(DeviceEvent::SelfTestStart);
   record(checkBoard());
   record(checkNvs(settings));
+  record(checkHx711(loadcell));
   dispatchTracked(DeviceEvent::SelfTestDone);
 
   if (model_.faultCode() != 0) {
@@ -109,6 +111,49 @@ CheckResult Diagnostics::checkNvs(Settings &settings) {
     // loadCalibration() behavior-preserving.
     result.status = CheckStatus::Warn;
     result.errorCode = ErrorCode::NvsCalibrationCorrupt;
+  }
+  result.elapsedMs = millis() - start;
+  return result;
+}
+
+CheckResult Diagnostics::checkHx711(ILoadCell &loadcell) {
+  const uint32_t start = millis();
+  CheckResult result;
+  result.id = CheckId::Hx711;
+  result.status = CheckStatus::Ok;
+  result.errorCode = ErrorCode::None;
+  result.measurement = 0.0f;
+
+  // FR-006/D7: wait_ready success within 1 s is the absent/connected
+  // discriminator; absence is WARN-class (D3), never FAIL.
+  if (!loadcell.waitReady(kHx711WaitMs)) {
+    result.status = CheckStatus::NotConnected;
+    result.elapsedMs = millis() - start;
+    return result;
+  }
+
+  // FR-006: 500 ms variance window over two raw samples; the spread
+  // decision is pinned in lib/FirmwareCore (HX711_NO_VARIATION_SPREAD,
+  // test_health_eval.cpp).
+  SampleWindow window;
+  for (int i = 0; i < 2; ++i) {
+    if (i == 1) {
+      delay(kHx711VarianceMs);
+    }
+    int32_t raw = 0;
+    if (!loadcell.rawSample(raw)) {
+      result.status = CheckStatus::NotConnected;
+      result.elapsedMs = millis() - start;
+      return result;
+    }
+    window.push(static_cast<float>(raw));
+  }
+  const float spread = window.spread();
+  result.measurement = spread;
+  if (spread < HX711_NO_VARIATION_SPREAD) {
+    // WARN diagnostic only; record() dispatches code 0 to the model.
+    result.status = CheckStatus::Warn;
+    result.errorCode = ErrorCode::Hx711NoVariation;
   }
   result.elapsedMs = millis() - start;
   return result;

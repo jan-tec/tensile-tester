@@ -48,7 +48,12 @@ String WebUi::statusJson() {
   json += ",\"steps\":";
   json += String(motion_.steps());
   json += ",\"forceNewton\":";
-  json += String(loadcell_.forceNewton(), 2);
+  if (loadcell_.isReady()) {
+    json += String(loadcell_.forceNewton(), 2);
+  } else {
+    // HX711 not ready: force is "n/a" (M1 T005), not a zero reading.
+    json += "\"n/a\"";
+  }
   json += ",\"calibrationValid\":";
   json += loadcell_.calibrationValid() ? "true" : "false";
   json += ",\"calibrationFactor\":";

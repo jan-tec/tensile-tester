@@ -27,6 +27,8 @@ class LoadCell : public ILoadCell {
   float forceNewton() override;
   bool calibrationValid() override;
   float calibrationFactor() override;
+  bool waitReady(unsigned long timeoutMs) override;
+  bool rawSample(int32_t &raw) override;
 
   // 10 Hz sample + low-pass filter; call from the loop task.
   void poll() override;

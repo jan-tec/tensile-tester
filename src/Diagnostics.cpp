@@ -61,6 +61,7 @@ void Diagnostics::runBootSelfTest(Settings &settings, ILoadCell &loadcell,
   record(checkBoard());
   record(checkNvs(settings));
   record(checkHx711(loadcell));
+  record(checkMotor(motion));
   dispatchTracked(DeviceEvent::SelfTestDone);
 
   if (model_.faultCode() != 0) {
@@ -154,6 +155,37 @@ CheckResult Diagnostics::checkHx711(ILoadCell &loadcell) {
     // WARN diagnostic only; record() dispatches code 0 to the model.
     result.status = CheckStatus::Warn;
     result.errorCode = ErrorCode::Hx711NoVariation;
+  }
+  result.elapsedMs = millis() - start;
+  return result;
+}
+
+CheckResult Diagnostics::checkMotor(IMotion &motion) {
+  const uint32_t start = millis();
+  CheckResult result;
+  result.id = CheckId::Motor;
+  result.status = CheckStatus::Ok;
+  // D5: no sense wiring exists, so the EN line is never read back.
+  // NO_FEEDBACK (0x0401) accompanies the result as an info note; a
+  // clean OK without it would be a false positive.
+  result.errorCode = ErrorCode::MotorNoFeedback;
+  result.measurement = 0.0f;
+
+  // D5: toggle EN and verify the module state follows. Restore the
+  // pre-check state (boot default: disabled, FR-001 driver off).
+  const bool wasEnabled = motion.isEnabled();
+  motion.disable();
+  const bool sawDisabled = !motion.isEnabled();
+  motion.enable();
+  const bool sawEnabled = motion.isEnabled();
+  if (wasEnabled) {
+    motion.enable();
+  } else {
+    motion.disable();
+  }
+  if (!sawDisabled || !sawEnabled) {
+    // Software/driver state did not follow the EN toggle.
+    result.status = CheckStatus::Fail;
   }
   result.elapsedMs = millis() - start;
   return result;

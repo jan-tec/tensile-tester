@@ -21,11 +21,11 @@ constexpr const char *kFwVersion = "0.4.0";
 
 class Diagnostics {
  public:
-  // Blocking boot selftest (T004: BOARD + NVS; T005: HX711; T006 adds
-  // MOTOR; T007 adds POWER). Prints the BOOT line, runs the checks,
-  // prints CHECK/STATE lines, dispatches the results into the
-  // DeviceModel, and disables the motor driver on every fault path
-  // (FR-001). Budget: <= 5 s (NFR).
+  // Blocking boot selftest (T004: BOARD + NVS; T005: HX711; T006: MOTOR;
+  // T007 adds POWER). Prints the BOOT line, runs the checks, prints
+  // CHECK/STATE lines, dispatches the results into the DeviceModel, and
+  // disables the motor driver on every fault path (FR-001).
+  // Budget: <= 5 s (NFR).
   void runBootSelfTest(Settings &settings, ILoadCell &loadcell, IMotion &motion);
 
   DeviceModel &model() { return model_; }
@@ -42,6 +42,7 @@ class Diagnostics {
   CheckResult checkBoard();
   CheckResult checkNvs(Settings &settings);
   CheckResult checkHx711(ILoadCell &loadcell);
+  CheckResult checkMotor(IMotion &motion);
   void record(const CheckResult &result);
   void dispatchTracked(DeviceEvent event, uint16_t code = 0);
   void printCheck(const CheckResult &result);

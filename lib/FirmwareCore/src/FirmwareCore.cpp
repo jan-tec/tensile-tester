@@ -99,12 +99,19 @@ Command commandFromName(const char* name) {
 }
 
 bool parseCommandValue(const char* command, const char* prefix, float* value) {
-  if (strncmp(command, prefix, strlen(prefix)) != 0) {
+  const size_t prefixLen = strlen(prefix);
+  if (strncmp(command, prefix, prefixLen) != 0) {
+    return false;
+  }
+  // NQP #42 (fix): the prefix must end at a word boundary (whitespace or
+  // end-of-string), so "rpmx 5" is not dispatched as "rpm".
+  const char boundary = command[prefixLen];
+  if (boundary != '\0' && strchr(kCommandWhitespace, boundary) == nullptr) {
     return false;
   }
 
   char number[48];
-  trimCopy(command + strlen(prefix), number, sizeof(number));
+  trimCopy(command + prefixLen, number, sizeof(number));
   if (number[0] == '\0') {
     return false;
   }

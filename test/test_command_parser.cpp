@@ -4,8 +4,8 @@
 // Semantics mirror the legacy String-based dispatch in src/main.cpp
 // (behavior-preserving per M0 FR-004), including its quirks:
 //   - command names are case-sensitive
-//   - value commands match by prefix WITHOUT a word boundary
 //   - a non-numeric value parses to 0.0 (caller rejects <= 0)
+// Word boundary after the value prefix: fixed per NQP #42.
 #include <unity.h>
 
 #include <FirmwareCore.h>
@@ -88,12 +88,20 @@ void test_parse_command_value_non_numeric_is_zero(void) {
   TEST_ASSERT_FLOAT_WITHIN(0.0f, 0.0f, value);
 }
 
-void test_parse_command_value_prefix_has_no_word_boundary(void) {
-  // Quirk pinned (FR-004): legacy startsWith("rpm") matches "rpmx 5" too.
-  // Parsing the remainder ("x 5") yields 0.0; caller rejects via > 0.
+void test_parse_command_value_requires_word_boundary(void) {
+  // NQP #42 (fix): the prefix must end at a word boundary (whitespace or
+  // end-of-string), so longer words that merely start with the prefix are
+  // unknown commands instead of parsing to 0.0.
   float value = -1.0f;
-  TEST_ASSERT_TRUE(parseCommandValue("rpmx 5", "rpm", &value));
-  TEST_ASSERT_FLOAT_WITHIN(0.0f, 0.0f, value);
+  TEST_ASSERT_FALSE(parseCommandValue("rpmx 5", "rpm", &value));
+  TEST_ASSERT_FALSE(parseCommandValue("accident 5", "acc", &value));
+  TEST_ASSERT_FALSE(parseCommandValue("movable 2", "move", &value));
+
+  // Valid commands keep working, including multiple spaces (acceptance).
+  TEST_ASSERT_TRUE(parseCommandValue("rpm 5", "rpm", &value));
+  TEST_ASSERT_FLOAT_WITHIN(0.0001f, 5.0f, value);
+  TEST_ASSERT_TRUE(parseCommandValue("acc   2", "acc", &value));
+  TEST_ASSERT_FLOAT_WITHIN(0.0001f, 2.0f, value);
 }
 
 void runCommandParserTests() {
@@ -106,5 +114,5 @@ void runCommandParserTests() {
   RUN_TEST(test_parse_command_value_prefix_mismatch);
   RUN_TEST(test_parse_command_value_empty_number_is_false);
   RUN_TEST(test_parse_command_value_non_numeric_is_zero);
-  RUN_TEST(test_parse_command_value_prefix_has_no_word_boundary);
+  RUN_TEST(test_parse_command_value_requires_word_boundary);
 }

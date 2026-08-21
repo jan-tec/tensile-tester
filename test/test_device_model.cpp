@@ -153,6 +153,15 @@ void test_device_model_reboot_recovery_path(void) {
   TEST_ASSERT_EQUAL_UINT16(0, model.faultCode());
 }
 
+void test_device_state_name_strings(void) {
+  TEST_ASSERT_EQUAL_STRING("Booting", deviceStateName(DeviceState::Booting));
+  TEST_ASSERT_EQUAL_STRING("SelfTest", deviceStateName(DeviceState::SelfTest));
+  TEST_ASSERT_EQUAL_STRING("Idle", deviceStateName(DeviceState::Idle));
+  TEST_ASSERT_EQUAL_STRING("Error", deviceStateName(DeviceState::Error));
+  // Unknown values must not crash (defensive name lookup).
+  TEST_ASSERT_NOT_NULL(deviceStateName(static_cast<DeviceState>(99)));
+}
+
 void runDeviceModelTests(void) {
   RUN_TEST(test_device_model_initial_state);
   RUN_TEST(test_device_model_boot_to_selftest);
@@ -164,4 +173,5 @@ void runDeviceModelTests(void) {
   RUN_TEST(test_device_model_reset_from_every_state);
   RUN_TEST(test_device_model_invalid_events_are_no_ops);
   RUN_TEST(test_device_model_reboot_recovery_path);
+  RUN_TEST(test_device_state_name_strings);
 }

@@ -22,6 +22,18 @@ Settings::Calibration Settings::loadCalibration() {
   return calibration;
 }
 
+Settings::Calibration Settings::readRawCalibration() {
+  Calibration calibration;
+
+  preferences_.begin(kNamespace, true);
+  calibration.valid =
+      preferences_.getBool(kPrefCalibrationValid, false);
+  calibration.factor = preferences_.getFloat(
+      kPrefCalibrationFactor, kDefaultCalibrationFactor);
+  preferences_.end();
+  return calibration;
+}
+
 void Settings::saveCalibration(float factor) {
   preferences_.begin(kNamespace, false);
   preferences_.putFloat(kPrefCalibrationFactor, factor);

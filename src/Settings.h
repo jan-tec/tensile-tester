@@ -23,6 +23,11 @@ class Settings {
   // invalid flag or factor == 0 resets to the default factor 1.0.
   Calibration loadCalibration();
 
+  // Raw stored values WITHOUT the legacy fallback (M1-T004 NVS sanity
+  // check): lets Diagnostics distinguish "first boot, no keys" from a
+  // corrupt config (valid flag set, non-positive factor).
+  Calibration readRawCalibration();
+
   // Write the calibration to NVS and mark it valid.
   void saveCalibration(float factor);
 

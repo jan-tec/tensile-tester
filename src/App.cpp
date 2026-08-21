@@ -11,6 +11,11 @@ void App::begin() {
   Serial.println("Zwei Motoren laufen synchron ueber dieselben STEP/DIR/EN-Signale.");
 
   loadcell_.begin(settings_);
+
+  // M1: blocking startup selftest (FR-007 boot log); must finish before
+  // the Web UI answers so /api/status can already report the checks.
+  diagnostics_.runBootSelfTest(settings_, motion_);
+
   webUi_.begin();
 }
 

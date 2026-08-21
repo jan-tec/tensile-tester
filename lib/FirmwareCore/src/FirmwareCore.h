@@ -113,6 +113,9 @@ enum class DeviceState { Booting, SelfTest, Idle, Error };
 enum class DeviceEvent { SelfTestStart, CheckResult, SelfTestDone, PowerLow,
                          Reset };
 
+// Stable English state names for the FR-007 STATE log lines.
+const char* deviceStateName(DeviceState state);
+
 // ---------------------------------------------------------------------------
 // Health evaluation (pure). M1 FR-005 / FR-006, TC-002: power rail
 // thresholds, FAIL-boundary hysteresis, >= 5-sample FAIL debounce and the

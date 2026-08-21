@@ -4,3 +4,5 @@
 .vscode/launch.json
 .vscode/ipch
 .playwright-cli/
+include/git_sha.h
+__pycache__/

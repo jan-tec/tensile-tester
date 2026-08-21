@@ -10,6 +10,7 @@
 #include <Arduino.h>
 
 #include "Commands.h"
+#include "Diagnostics.h"
 #include "ILoadCell.h"
 #include "IMotion.h"
 #include "SerialCli.h"
@@ -19,13 +20,15 @@
 class App {
  public:
   App(Settings &settings, IMotion &motion, ILoadCell &loadcell,
-      Commands &commands, SerialCli &serialCli, WebUi &webUi)
+      Commands &commands, SerialCli &serialCli, WebUi &webUi,
+      Diagnostics &diagnostics)
       : settings_(settings),
         motion_(motion),
         loadcell_(loadcell),
         commands_(commands),
         serialCli_(serialCli),
-        webUi_(webUi) {}
+        webUi_(webUi),
+        diagnostics_(diagnostics) {}
 
   // Boot sequence: Serial, Motion, banner, LoadCell, Web UI.
   void begin();
@@ -43,5 +46,6 @@ class App {
   Commands &commands_;
   SerialCli &serialCli_;
   WebUi &webUi_;
+  Diagnostics &diagnostics_;
   unsigned long lastStatusMs_ = 0;
 };

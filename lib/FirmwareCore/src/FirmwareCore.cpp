@@ -259,3 +259,19 @@ float SampleWindow::spread() const {
   }
   return hi - lo;
 }
+
+const char* deviceStateName(DeviceState state) {
+  switch (state) {
+    case DeviceState::Booting:
+      return "Booting";
+    case DeviceState::SelfTest:
+      return "SelfTest";
+    case DeviceState::Idle:
+      return "Idle";
+    case DeviceState::Error:
+      return "Error";
+    default:
+      return "Unknown";
+  }
+  return "?";
+}

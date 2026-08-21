@@ -2,6 +2,7 @@
 
 #include "App.h"
 #include "Commands.h"
+#include "Diagnostics.h"
 #include "LoadCell.h"
 #include "Motion.h"
 #include "SerialCli.h"
@@ -19,7 +20,9 @@ LoadCell loadcell;
 Commands commands(motion, loadcell);
 SerialCli serialCli(commands);
 WebUi webUi(commands, motion, loadcell);
-App app(settings, motion, loadcell, commands, serialCli, webUi);
+Diagnostics diagnostics;
+App app(settings, motion, loadcell, commands, serialCli, webUi,
+        diagnostics);
 }  // namespace
 
 void setup() {

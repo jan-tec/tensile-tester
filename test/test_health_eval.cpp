@@ -25,6 +25,20 @@ void test_power_status_boundaries(void) {
                     static_cast<int>(powerStatusForVoltage(5.0f)));
 }
 
+// --- FR-005 NOT_WIRED detection (D4: pulldown, absent divider) -------------
+
+// An unwired sense input (GPIO34 INPUT_PULLDOWN) reads ~0 V rail-equivalent.
+// A live 5 V rail can never be below POWER_NOT_WIRED_VOLTS, so readings
+// under it mean absent, not low (D3: info, never FAIL).
+void test_power_not_wired_boundaries(void) {
+  TEST_ASSERT_TRUE(powerNotWired(0.0f));
+  TEST_ASSERT_TRUE(powerNotWired(0.99f));
+  // 1.00 V rail-equivalent is NOT below the not-wired threshold.
+  TEST_ASSERT_FALSE(powerNotWired(1.00f));
+  TEST_ASSERT_FALSE(powerNotWired(2.50f));
+  TEST_ASSERT_FALSE(powerNotWired(5.0f));
+}
+
 // --- FR-005 runtime monitor: 5-sample FAIL debounce ------------------------
 
 void test_power_monitor_debounce_four_is_not_fail(void) {
@@ -169,6 +183,7 @@ void test_sample_window_no_variation_detection(void) {
 
 void runHealthEvalTests(void) {
   RUN_TEST(test_power_status_boundaries);
+  RUN_TEST(test_power_not_wired_boundaries);
   RUN_TEST(test_power_monitor_debounce_four_is_not_fail);
   RUN_TEST(test_power_monitor_five_consecutive_is_fail);
   RUN_TEST(test_power_monitor_single_good_sample_resets_streak);

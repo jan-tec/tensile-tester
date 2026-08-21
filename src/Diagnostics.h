@@ -14,6 +14,7 @@
 #include "FirmwareCore.h"
 #include "ILoadCell.h"
 #include "IMotion.h"
+#include "PowerSense.h"
 #include "Settings.h"
 
 // Firmware version reported in the BOOT line. Bump manually per release.
@@ -21,12 +22,18 @@ constexpr const char *kFwVersion = "0.4.0";
 
 class Diagnostics {
  public:
-  // Blocking boot selftest (T004: BOARD + NVS; T005: HX711; T006: MOTOR;
-  // T007 adds POWER). Prints the BOOT line, runs the checks, prints
+  // Blocking boot selftest (all five FR-002 checks: BOARD, NVS, POWER,
+  // HX711, MOTOR). Prints the BOOT line, runs the checks, prints
   // CHECK/STATE lines, dispatches the results into the DeviceModel, and
   // disables the motor driver on every fault path (FR-001).
   // Budget: <= 5 s (NFR).
-  void runBootSelfTest(Settings &settings, ILoadCell &loadcell, IMotion &motion);
+  void runBootSelfTest(Settings &settings, ILoadCell &loadcell, IMotion &motion,
+                       PowerSense &power);
+
+  // FR-005: feed the 1 Hz runtime power state into the DeviceModel
+  // (Fail -> Error; FR-009: recovery only by reset/reboot). Call after
+  // every PowerSense::poll().
+  void reportRuntimePowerState(PowerStatus state);
 
   DeviceModel &model() { return model_; }
   const DeviceModel &model() const { return model_; }
@@ -41,6 +48,7 @@ class Diagnostics {
 
   CheckResult checkBoard();
   CheckResult checkNvs(Settings &settings);
+  CheckResult checkPower(PowerSense &power);
   CheckResult checkHx711(ILoadCell &loadcell);
   CheckResult checkMotor(IMotion &motion);
   void record(const CheckResult &result);

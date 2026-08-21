@@ -13,6 +13,7 @@
 #include "Diagnostics.h"
 #include "ILoadCell.h"
 #include "IMotion.h"
+#include "PowerSense.h"
 #include "SerialCli.h"
 #include "Settings.h"
 #include "WebUi.h"
@@ -20,11 +21,12 @@
 class App {
  public:
   App(Settings &settings, IMotion &motion, ILoadCell &loadcell,
-      Commands &commands, SerialCli &serialCli, WebUi &webUi,
-      Diagnostics &diagnostics)
+      PowerSense &powerSense, Commands &commands, SerialCli &serialCli,
+      WebUi &webUi, Diagnostics &diagnostics)
       : settings_(settings),
         motion_(motion),
         loadcell_(loadcell),
+        powerSense_(powerSense),
         commands_(commands),
         serialCli_(serialCli),
         webUi_(webUi),
@@ -43,6 +45,7 @@ class App {
   Settings &settings_;
   IMotion &motion_;
   ILoadCell &loadcell_;
+  PowerSense &powerSense_;
   Commands &commands_;
   SerialCli &serialCli_;
   WebUi &webUi_;

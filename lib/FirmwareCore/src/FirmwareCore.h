@@ -137,6 +137,13 @@ enum class PowerStatus { OK, Warn, Fail };
 // v < 4.75 -> Warn, else OK.
 PowerStatus powerStatusForVoltage(float volts);
 
+// FR-005 (D4): NOT_WIRED detection for the 5 V rail sense input. The
+// sense pin is INPUT_PULLDOWN, so an absent divider reads ~0 V. A live
+// 5 V rail can never sit below this rail-equivalent threshold, so a
+// reading under it means absent (NOT_WIRED, info per D3), not low.
+constexpr float POWER_NOT_WIRED_VOLTS = 1.0f;
+bool powerNotWired(float railVolts);
+
 // Runtime rail monitor (1 Hz, FR-005): FAIL needs POWER_FAIL_DEBOUNCE
 // consecutive samples below POWER_FAIL_VOLTS; the hysteresis band around
 // the fail boundary neither extends nor clears the streak; recovery above

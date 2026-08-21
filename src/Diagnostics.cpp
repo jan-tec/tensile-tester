@@ -49,7 +49,7 @@ const char *resetReasonName(esp_reset_reason_t reason) {
 }  // namespace
 
 void Diagnostics::runBootSelfTest(Settings &settings, ILoadCell &loadcell,
-                                  IMotion &motion) {
+                                  IMotion &motion, PowerSense &power) {
   Serial.print(F("BOOT fw="));
   Serial.print(kFwVersion);
   Serial.print(F(" git="));
@@ -60,6 +60,7 @@ void Diagnostics::runBootSelfTest(Settings &settings, ILoadCell &loadcell,
   dispatchTracked(DeviceEvent::SelfTestStart);
   record(checkBoard());
   record(checkNvs(settings));
+  record(checkPower(power));
   record(checkHx711(loadcell));
   record(checkMotor(motion));
   dispatchTracked(DeviceEvent::SelfTestDone);
@@ -112,6 +113,35 @@ CheckResult Diagnostics::checkNvs(Settings &settings) {
     // loadCalibration() behavior-preserving.
     result.status = CheckStatus::Warn;
     result.errorCode = ErrorCode::NvsCalibrationCorrupt;
+  }
+  result.elapsedMs = millis() - start;
+  return result;
+}
+
+CheckResult Diagnostics::checkPower(PowerSense &power) {
+  const uint32_t start = millis();
+  CheckResult result;
+  result.id = CheckId::Power;
+  result.status = CheckStatus::Ok;
+  result.errorCode = ErrorCode::None;
+
+  const float volts = power.readRailVolts();
+  result.measurement = volts;
+
+  if (powerNotWired(volts)) {
+    // D3: an absent divider (T008 not built) is info (NOT_WIRED),
+    // never a power fault; the pin reads ~0 V via INPUT_PULLDOWN.
+    result.status = CheckStatus::NotWired;
+  } else {
+    const PowerStatus status = powerStatusForVoltage(volts);
+    if (status == PowerStatus::Fail) {
+      result.status = CheckStatus::Fail;
+      result.errorCode = ErrorCode::PowerLow;
+    } else if (status == PowerStatus::Warn) {
+      // WARN diagnostic only; record() dispatches code 0 to the model.
+      result.status = CheckStatus::Warn;
+      result.errorCode = ErrorCode::PowerLow;
+    }
   }
   result.elapsedMs = millis() - start;
   return result;
@@ -201,6 +231,17 @@ void Diagnostics::record(const CheckResult &result) {
   dispatchTracked(DeviceEvent::CheckResult, code);
   if (resultCount_ < kMaxChecks) {
     results_[resultCount_++] = result;
+  }
+}
+
+void Diagnostics::reportRuntimePowerState(PowerStatus state) {
+  // FR-005: a debounced runtime FAIL drives the model to Error;
+  // FR-009: recovery only by reset/reboot (no Error -> Idle path).
+  // dispatchTracked() prints STATE only on an actual transition, so
+  // calling this at 1 Hz is safe.
+  if (state == PowerStatus::Fail) {
+    dispatchTracked(DeviceEvent::PowerLow,
+                    static_cast<uint16_t>(ErrorCode::PowerLow));
   }
 }
 

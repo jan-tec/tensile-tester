@@ -5,6 +5,7 @@
 #include "Diagnostics.h"
 #include "LoadCell.h"
 #include "Motion.h"
+#include "PowerSense.h"
 #include "SerialCli.h"
 #include "Settings.h"
 #include "WebUi.h"
@@ -17,11 +18,12 @@ namespace {
 Settings settings;
 Motion motion;
 LoadCell loadcell;
+PowerSense powerSense;
 Commands commands(motion, loadcell);
 SerialCli serialCli(commands);
 WebUi webUi(commands, motion, loadcell);
 Diagnostics diagnostics;
-App app(settings, motion, loadcell, commands, serialCli, webUi,
+App app(settings, motion, loadcell, powerSense, commands, serialCli, webUi,
         diagnostics);
 }  // namespace
 

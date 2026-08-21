@@ -210,6 +210,10 @@ PowerStatus powerStatusForVoltage(float volts) {
   return PowerStatus::OK;
 }
 
+bool powerNotWired(float railVolts) {
+  return railVolts < POWER_NOT_WIRED_VOLTS;
+}
+
 PowerStatus PowerMonitor::update(float volts) {
   if (volts < POWER_FAIL_VOLTS) {
     // Out of band: extend the debounce streak.

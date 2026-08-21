@@ -14,12 +14,18 @@ void Commands::printPosition() {
   Serial.println(loadcell_.forceNewton(), 2);
 }
 
-bool Commands::parseValueAfterCommand(const String &command,
-                                      const char *prefix, float &value) const {
+ParseResult Commands::parseValueAfterCommand(const String &command,
+                                             const char *prefix,
+                                             float &value) const {
   // jane: parseCommandValue buffers 47-char numbers; the legacy String
   // version had no limit, but no realistic command (float has ~7
   // significant digits) can observe the difference.
   return parseCommandValue(command.c_str(), prefix, &value);
+}
+
+bool Commands::reportInvalidValue(String &response) const {
+  response = "Ungueltiger Wert.";
+  return false;
 }
 
 bool Commands::execute(String command, String &response) {
@@ -67,7 +73,12 @@ bool Commands::execute(String command, String &response) {
 
   float value = 0.0f;
 
-  if (parseValueAfterCommand(command, "cal_apply", value)) {
+  const ParseResult calApplyResult =
+      parseValueAfterCommand(command, "cal_apply", value);
+  if (calApplyResult == ParseResult::InvalidValue) {
+    return reportInvalidValue(response);
+  }
+  if (calApplyResult == ParseResult::Ok) {
     switch (loadcell_.calibrateWithMass(value)) {
       case LoadCell::CalError::NotReady:
         response = "HX711 nicht bereit.";
@@ -86,7 +97,8 @@ bool Commands::execute(String command, String &response) {
         response = "Kalibrierung fehlgeschlagen: Faktor ist 0.";
         return false;
       case LoadCell::CalError::NegativeFactor:
-        response = "Kalibrierung fehlgeschlagen: Faktor negativ (Offset drift?).";
+        response =
+            "Kalibrierung fehlgeschlagen: Faktor negativ (Offset drift?).";
         return false;
       case LoadCell::CalError::None:
         break;
@@ -113,7 +125,11 @@ bool Commands::execute(String command, String &response) {
     return true;
   }
 
-  if (parseValueAfterCommand(command, "rpm", value)) {
+  const ParseResult rpmResult = parseValueAfterCommand(command, "rpm", value);
+  if (rpmResult == ParseResult::InvalidValue) {
+    return reportInvalidValue(response);
+  }
+  if (rpmResult == ParseResult::Ok) {
     if (value <= 0.0f) {
       response = "RPM muss groesser als 0 sein.";
       return false;
@@ -125,7 +141,11 @@ bool Commands::execute(String command, String &response) {
     return true;
   }
 
-  if (parseValueAfterCommand(command, "acc", value)) {
+  const ParseResult accResult = parseValueAfterCommand(command, "acc", value);
+  if (accResult == ParseResult::InvalidValue) {
+    return reportInvalidValue(response);
+  }
+  if (accResult == ParseResult::Ok) {
     if (value <= 0.0f) {
       response = "ACC muss groesser als 0 sein.";
       return false;
@@ -137,7 +157,12 @@ bool Commands::execute(String command, String &response) {
     return true;
   }
 
-  if (parseValueAfterCommand(command, "feed", value)) {
+  const ParseResult feedResult =
+      parseValueAfterCommand(command, "feed", value);
+  if (feedResult == ParseResult::InvalidValue) {
+    return reportInvalidValue(response);
+  }
+  if (feedResult == ParseResult::Ok) {
     if (value <= 0.0f) {
       response = "Vorschub muss groesser als 0 sein.";
       return false;
@@ -163,14 +188,22 @@ bool Commands::execute(String command, String &response) {
     return true;
   }
 
-  if (parseValueAfterCommand(command, "move", value)) {
+  const ParseResult moveResult = parseValueAfterCommand(command, "move", value);
+  if (moveResult == ParseResult::InvalidValue) {
+    return reportInvalidValue(response);
+  }
+  if (moveResult == ParseResult::Ok) {
     motion_.startMoveToSteps(
         static_cast<long>(motion_.steps() + spindleMmToSteps(value)));
     response = "Relativbewegung gestartet: " + String(value, 3) + " mm.";
     return true;
   }
 
-  if (parseValueAfterCommand(command, "turn", value)) {
+  const ParseResult turnResult = parseValueAfterCommand(command, "turn", value);
+  if (turnResult == ParseResult::InvalidValue) {
+    return reportInvalidValue(response);
+  }
+  if (turnResult == ParseResult::Ok) {
     motion_.startMoveToSteps(
         static_cast<long>(motion_.steps() + outputTurnsToSteps(value)));
     response = "Relativbewegung gestartet: " + String(value, 3) +

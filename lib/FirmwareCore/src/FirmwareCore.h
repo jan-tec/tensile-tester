@@ -81,8 +81,18 @@ enum class Command {
 
 Command commandFromName(const char* name);
 
+// Result of parsing a value command. NQP #43 (fix): the legacy two-state
+// parser turned garbage into 0.0 (misleading "> 0" error) and truncated
+// trailing junk ("5abc" == 5); both are now a distinct InvalidValue.
+enum class ParseResult {
+  NotACommand,  // prefix mismatch, no number, or not at a word boundary
+  InvalidValue, // token present but not a fully-consumed finite number
+  Ok,           // *value set
+};
+
 // Parse the number after `prefix` in `command` (caller must pass the already
-// trimmed command, as the legacy dispatch does). Returns false when the
-// prefix does not match or no number remains; non-numeric input yields 0.0
-// with a true return (the caller rejects it via its > 0 check).
-bool parseCommandValue(const char* command, const char* prefix, float* value);
+// trimmed command, as the legacy dispatch does). The ENTIRE trimmed token
+// must be consumed by strtof (German decimal comma accepted); empty or
+// non-matching tokens yield NotACommand (legacy unknown-command fallthrough).
+ParseResult parseCommandValue(const char* command, const char* prefix,
+                              float* value);

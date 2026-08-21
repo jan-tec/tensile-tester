@@ -4,7 +4,7 @@
 // Semantics mirror the legacy String-based dispatch in src/main.cpp
 // (behavior-preserving per M0 FR-004), including its quirks:
 //   - command names are case-sensitive
-//   - a non-numeric value parses to 0.0 (caller rejects <= 0)
+// Non-numeric / truncated values: fixed per NQP #43 (InvalidValue).
 // Word boundary after the value prefix: fixed per NQP #42.
 #include <unity.h>
 
@@ -12,6 +12,9 @@
 
 #define TEST_ASSERT_COMMAND(expected, actual) \
   TEST_ASSERT_EQUAL(static_cast<int>(expected), static_cast<int>(actual))
+
+#define TEST_ASSERT_PARSE(expected, call) \
+  TEST_ASSERT_EQUAL(static_cast<int>(expected), (call))
 
 void test_command_from_name_exact(void) {
   TEST_ASSERT_COMMAND(Command::Enable, commandFromName("en"));
@@ -47,45 +50,79 @@ void test_command_from_name_is_exact_match_only(void) {
 }
 
 void test_parse_command_value_basic(void) {
+  // NQP #43 (fix): valid numbers keep working (acceptance criteria).
   float value = -1.0f;
-  TEST_ASSERT_TRUE(parseCommandValue("rpm 5", "rpm", &value));
+  TEST_ASSERT_PARSE(ParseResult::Ok, parseCommandValue("rpm 5", "rpm", &value));
   TEST_ASSERT_FLOAT_WITHIN(0.0001f, 5.0f, value);
 
-  TEST_ASSERT_TRUE(parseCommandValue("turn 0.25", "turn", &value));
+  TEST_ASSERT_PARSE(ParseResult::Ok,
+                    parseCommandValue("turn 0.25", "turn", &value));
   TEST_ASSERT_FLOAT_WITHIN(0.0001f, 0.25f, value);
 
-  TEST_ASSERT_TRUE(parseCommandValue("move -2", "move", &value));
+  TEST_ASSERT_PARSE(ParseResult::Ok,
+                    parseCommandValue("move -2", "move", &value));
   TEST_ASSERT_FLOAT_WITHIN(0.0001f, -2.0f, value);
 }
 
 void test_parse_command_value_trims_and_replaces_comma(void) {
   // German decimal comma is accepted (legacy replace(',', '.')).
   float value = -1.0f;
-  TEST_ASSERT_TRUE(parseCommandValue("feed 12,5", "feed", &value));
+  TEST_ASSERT_PARSE(ParseResult::Ok,
+                    parseCommandValue("feed 12,5", "feed", &value));
   TEST_ASSERT_FLOAT_WITHIN(0.0001f, 12.5f, value);
 
-  TEST_ASSERT_TRUE(parseCommandValue("rpm   5", "rpm", &value));
+  TEST_ASSERT_PARSE(ParseResult::Ok, parseCommandValue("rpm   5", "rpm", &value));
   TEST_ASSERT_FLOAT_WITHIN(0.0001f, 5.0f, value);
 }
 
 void test_parse_command_value_prefix_mismatch(void) {
+  // Not a command for this prefix: dispatch falls through to unknown.
   float value = -1.0f;
-  TEST_ASSERT_FALSE(parseCommandValue("rpm 5", "acc", &value));
+  TEST_ASSERT_PARSE(ParseResult::NotACommand,
+                    parseCommandValue("rpm 5", "acc", &value));
 }
 
-void test_parse_command_value_empty_number_is_false(void) {
-  // "rpm" or "rpm " has no number: legacy falls through to unknown.
+void test_parse_command_value_empty_number_is_not_a_command(void) {
+  // "rpm" or "rpm " has no number: legacy falls through to unknown
+  // (acceptance: "rpm " stays unknown, unchanged by #43).
   float value = -1.0f;
-  TEST_ASSERT_FALSE(parseCommandValue("rpm", "rpm", &value));
-  TEST_ASSERT_FALSE(parseCommandValue("rpm ", "rpm", &value));
+  TEST_ASSERT_PARSE(ParseResult::NotACommand,
+                    parseCommandValue("rpm", "rpm", &value));
+  TEST_ASSERT_PARSE(ParseResult::NotACommand,
+                    parseCommandValue("rpm ", "rpm", &value));
 }
 
-void test_parse_command_value_non_numeric_is_zero(void) {
-  // Quirk pinned (FR-004): legacy toFloat() yields 0.0 for garbage, so the
-  // command "succeeds" and the caller rejects it with the > 0 check.
+void test_parse_command_value_non_numeric_is_invalid(void) {
+  // NQP #43 (fix, replaces the FR-004 pin "non_numeric_is_zero"):
+  // legacy toFloat() yielded 0.0 for garbage, so the command "succeeded"
+  // and the caller rejected it with the misleading "> 0" message.
   float value = -1.0f;
-  TEST_ASSERT_TRUE(parseCommandValue("rpm abc", "rpm", &value));
-  TEST_ASSERT_FLOAT_WITHIN(0.0f, 0.0f, value);
+  TEST_ASSERT_PARSE(ParseResult::InvalidValue,
+                    parseCommandValue("rpm abc", "rpm", &value));
+  TEST_ASSERT_PARSE(ParseResult::InvalidValue,
+                    parseCommandValue("acc x1", "acc", &value));
+}
+
+void test_parse_command_value_trailing_junk_is_invalid(void) {
+  // NQP #43 (fix): the ENTIRE token must be consumed; legacy truncated
+  // trailing junk ("rpm 5abc" silently became 5).
+  float value = -1.0f;
+  TEST_ASSERT_PARSE(ParseResult::InvalidValue,
+                    parseCommandValue("rpm 5abc", "rpm", &value));
+  TEST_ASSERT_PARSE(ParseResult::InvalidValue,
+                    parseCommandValue("feed 1,2,3", "feed", &value));
+  TEST_ASSERT_PARSE(ParseResult::InvalidValue,
+                    parseCommandValue("move 2.5.5", "move", &value));
+}
+
+void test_parse_command_value_non_finite_is_invalid(void) {
+  // strtof accepts "inf"/"nan" fully; they must not reach the step math
+  // (lroundf(inf) is UB and an infinite setpoint is machine-unsafe).
+  float value = -1.0f;
+  TEST_ASSERT_PARSE(ParseResult::InvalidValue,
+                    parseCommandValue("rpm inf", "rpm", &value));
+  TEST_ASSERT_PARSE(ParseResult::InvalidValue,
+                    parseCommandValue("move nan", "move", &value));
 }
 
 void test_parse_command_value_requires_word_boundary(void) {
@@ -93,14 +130,17 @@ void test_parse_command_value_requires_word_boundary(void) {
   // end-of-string), so longer words that merely start with the prefix are
   // unknown commands instead of parsing to 0.0.
   float value = -1.0f;
-  TEST_ASSERT_FALSE(parseCommandValue("rpmx 5", "rpm", &value));
-  TEST_ASSERT_FALSE(parseCommandValue("accident 5", "acc", &value));
-  TEST_ASSERT_FALSE(parseCommandValue("movable 2", "move", &value));
+  TEST_ASSERT_PARSE(ParseResult::NotACommand,
+                    parseCommandValue("rpmx 5", "rpm", &value));
+  TEST_ASSERT_PARSE(ParseResult::NotACommand,
+                    parseCommandValue("accident 5", "acc", &value));
+  TEST_ASSERT_PARSE(ParseResult::NotACommand,
+                    parseCommandValue("movable 2", "move", &value));
 
   // Valid commands keep working, including multiple spaces (acceptance).
-  TEST_ASSERT_TRUE(parseCommandValue("rpm 5", "rpm", &value));
+  TEST_ASSERT_PARSE(ParseResult::Ok, parseCommandValue("rpm 5", "rpm", &value));
   TEST_ASSERT_FLOAT_WITHIN(0.0001f, 5.0f, value);
-  TEST_ASSERT_TRUE(parseCommandValue("acc   2", "acc", &value));
+  TEST_ASSERT_PARSE(ParseResult::Ok, parseCommandValue("acc   2", "acc", &value));
   TEST_ASSERT_FLOAT_WITHIN(0.0001f, 2.0f, value);
 }
 
@@ -112,7 +152,9 @@ void runCommandParserTests() {
   RUN_TEST(test_parse_command_value_basic);
   RUN_TEST(test_parse_command_value_trims_and_replaces_comma);
   RUN_TEST(test_parse_command_value_prefix_mismatch);
-  RUN_TEST(test_parse_command_value_empty_number_is_false);
-  RUN_TEST(test_parse_command_value_non_numeric_is_zero);
+  RUN_TEST(test_parse_command_value_empty_number_is_not_a_command);
+  RUN_TEST(test_parse_command_value_non_numeric_is_invalid);
+  RUN_TEST(test_parse_command_value_trailing_junk_is_invalid);
+  RUN_TEST(test_parse_command_value_non_finite_is_invalid);
   RUN_TEST(test_parse_command_value_requires_word_boundary);
 }

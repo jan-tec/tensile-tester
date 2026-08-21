@@ -7,10 +7,9 @@
 //
 // Name matching uses the T002 parser (FirmwareCore::commandFromName);
 // value parsing uses FirmwareCore::parseCommandValue via a String
-// adapter. Behavior is byte-identical to the legacy inline dispatch
-// (M0 FR-004) - the quirks tracked in #41 (case-sensitive names), #42
-// (prefix matching without word boundary) and #43 (garbage value ->
-// 0.0) are preserved, not fixed.
+// adapter. The quirk tracked in #41 (case-sensitive names) is preserved;
+// #42 (word boundary) and #43 (garbage value -> 0.0 / truncated token)
+// are fixed in their own PRs per the No-Quirk Policy.
 #pragma once
 
 #include <Arduino.h>
@@ -42,8 +41,12 @@ class Commands {
 
  private:
   // String adapter around the T002 parser (FirmwareCore::parseCommandValue).
-  bool parseValueAfterCommand(const String &command, const char *prefix,
-                              float &value) const;
+  ParseResult parseValueAfterCommand(const String &command, const char *prefix,
+                                     float &value) const;
+
+  // Shared response for ParseResult::InvalidValue (NQP #43): the token was
+  // present but not a number, distinct from the per-command "> 0" errors.
+  bool reportInvalidValue(String &response) const;
 
   Motion &motion_;
   LoadCell &loadcell_;

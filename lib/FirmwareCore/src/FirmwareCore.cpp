@@ -114,31 +114,45 @@ Command commandFromName(const char* name) {
   return Command::Unknown;
 }
 
-bool parseCommandValue(const char* command, const char* prefix, float* value) {
+ParseResult parseCommandValue(const char* command, const char* prefix,
+                              float* value) {
   const size_t prefixLen = strlen(prefix);
   if (strncmp(command, prefix, prefixLen) != 0) {
-    return false;
+    return ParseResult::NotACommand;
   }
   // NQP #42 (fix): the prefix must end at a word boundary (whitespace or
   // end-of-string), so "rpmx 5" is not dispatched as "rpm".
   const char boundary = command[prefixLen];
   if (boundary != '\0' && strchr(kCommandWhitespace, boundary) == nullptr) {
-    return false;
+    return ParseResult::NotACommand;
   }
 
   char number[48];
   trimCopy(command + prefixLen, number, sizeof(number));
   if (number[0] == '\0') {
-    return false;
+    return ParseResult::NotACommand;
   }
 
-  // Legacy String::replace(',', '.') then toFloat(): non-numeric input
-  // yields 0.0 and parsing stops at the first non-numeric character.
+  // Legacy German decimal comma (replace(',', '.')).
   for (char* p = number; *p != '\0'; ++p) {
     if (*p == ',') {
       *p = '.';
     }
   }
-  *value = strtof(number, nullptr);
-  return true;
+
+  // NQP #43 (fix): the ENTIRE token must be consumed by strtof. Legacy
+  // truncated trailing junk ("5abc" == 5) and mapped non-numeric input to
+  // 0.0, which callers misreported as a "> 0" range error.
+  char* end = nullptr;
+  const float parsed = strtof(number, &end);
+  if (end == number || *end != '\0') {
+    return ParseResult::InvalidValue;
+  }
+  // strtof also accepts "inf"/"nan" fully; they must not reach the step
+  // math (lroundf(inf) is UB, an infinite setpoint is machine-unsafe).
+  if (!std::isfinite(parsed)) {
+    return ParseResult::InvalidValue;
+  }
+  *value = parsed;
+  return ParseResult::Ok;
 }

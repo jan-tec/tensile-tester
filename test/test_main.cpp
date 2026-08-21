@@ -9,6 +9,7 @@ extern void runGearMathTests();
 extern void runCommandParserTests();
 extern void runCalibrationTests();
 extern void runDeviceModelTests();
+extern void runHealthEvalTests();
 
 void setUp(void) {}
 void tearDown(void) {}
@@ -19,5 +20,6 @@ int main(void) {
   runCommandParserTests();
   runCalibrationTests();
   runDeviceModelTests();
+  runHealthEvalTests();
   return UNITY_END();
 }

@@ -4,6 +4,7 @@
 // String, portMUX and hardware pins; hardware access stays in src/main.cpp.
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 
 // Gear train: 200 full steps/rev motor x 13.73:1 gearbox x 8 microsteps
@@ -111,6 +112,64 @@ enum class DeviceState { Booting, SelfTest, Idle, Error };
 // motor); 0 means OK/WARN (no fault code).
 enum class DeviceEvent { SelfTestStart, CheckResult, SelfTestDone, PowerLow,
                          Reset };
+
+// ---------------------------------------------------------------------------
+// Health evaluation (pure). M1 FR-005 / FR-006, TC-002: power rail
+// thresholds, FAIL-boundary hysteresis, >= 5-sample FAIL debounce and the
+// HX711 500 ms variance window. Pinned in test/test_health_eval.cpp.
+// ---------------------------------------------------------------------------
+
+// 5 V rail thresholds (10 k/10 k divider on GPIO34).
+constexpr float POWER_FAIL_VOLTS = 4.50f;
+constexpr float POWER_WARN_VOLTS = 4.75f;
+// Hysteresis at the FAIL boundary: samples in [FAIL, FAIL+HYST) neither
+// extend nor clear the debounce streak; recovery needs FAIL + HYST.
+constexpr float POWER_FAIL_HYSTERESIS = 0.05f;
+// Consecutive out-of-band samples required before a runtime FAIL (FR-005).
+constexpr int POWER_FAIL_DEBOUNCE = 5;
+
+enum class PowerStatus { OK, Warn, Fail };
+
+// Single-shot rail evaluation (boot POWER check): v < 4.50 -> Fail,
+// v < 4.75 -> Warn, else OK.
+PowerStatus powerStatusForVoltage(float volts);
+
+// Runtime rail monitor (1 Hz, FR-005): FAIL needs POWER_FAIL_DEBOUNCE
+// consecutive samples below POWER_FAIL_VOLTS; the hysteresis band around
+// the fail boundary neither extends nor clears the streak; recovery above
+// POWER_FAIL_VOLTS + POWER_FAIL_HYSTERESIS clears the streak and demotes
+// Fail to Warn/OK.
+class PowerMonitor {
+ public:
+  // Ingest one sample, returns the current state.
+  PowerStatus update(float volts);
+  PowerStatus state() const { return state_; }
+
+ private:
+  PowerStatus state_ = PowerStatus::OK;
+  int failStreak_ = 0;
+};
+
+// HX711 signal window: 500 ms at the 10 Hz sampling rate (FR-006).
+// Spread (max - min) below HX711_NO_VARIATION_SPREAD means a dead/shorted
+// cell (WARN NO_VARIATION diagnostic); a live cell exceeds it.
+constexpr float HX711_NO_VARIATION_SPREAD = 1.0f;
+
+class SampleWindow {
+ public:
+  static constexpr size_t CAPACITY = 50;
+
+  void push(float sample);
+  size_t size() const { return size_; }
+  bool full() const { return size_ == CAPACITY; }
+  // max - min over the stored samples; 0 when fewer than two samples.
+  float spread() const;
+
+ private:
+  float samples_[CAPACITY] = {};
+  size_t size_ = 0;
+  size_t next_ = 0;
+};
 
 class DeviceModel {
  public:

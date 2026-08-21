@@ -194,3 +194,68 @@ void DeviceModel::dispatch(DeviceEvent event, uint16_t code) {
       break;
   }
 }
+
+// ---------------------------------------------------------------------------
+// Health evaluation (M1 FR-005 / FR-006). Pinned in
+// test/test_health_eval.cpp.
+// ---------------------------------------------------------------------------
+
+PowerStatus powerStatusForVoltage(float volts) {
+  if (volts < POWER_FAIL_VOLTS) {
+    return PowerStatus::Fail;
+  }
+  if (volts < POWER_WARN_VOLTS) {
+    return PowerStatus::Warn;
+  }
+  return PowerStatus::OK;
+}
+
+PowerStatus PowerMonitor::update(float volts) {
+  if (volts < POWER_FAIL_VOLTS) {
+    // Out of band: extend the debounce streak.
+    if (failStreak_ < POWER_FAIL_DEBOUNCE) {
+      failStreak_++;
+    }
+    if (failStreak_ >= POWER_FAIL_DEBOUNCE) {
+      state_ = PowerStatus::Fail;
+    }
+  } else if (volts >= POWER_FAIL_VOLTS + POWER_FAIL_HYSTERESIS) {
+    // Recovered past the hysteresis band: clear the streak, demote state.
+    failStreak_ = 0;
+    if (state_ == PowerStatus::Fail) {
+      state_ = (volts < POWER_WARN_VOLTS + POWER_FAIL_HYSTERESIS)
+                   ? PowerStatus::Warn
+                   : PowerStatus::OK;
+    } else {
+      state_ = powerStatusForVoltage(volts);
+    }
+  }
+  // else: inside the hysteresis band [FAIL, FAIL+HYST) - neither extend
+  // nor clear the streak, state unchanged (FR-005 hysteresis).
+  return state_;
+}
+
+void SampleWindow::push(float sample) {
+  samples_[next_] = sample;
+  next_ = (next_ + 1) % CAPACITY;
+  if (size_ < CAPACITY) {
+    size_++;
+  }
+}
+
+float SampleWindow::spread() const {
+  if (size_ < 2) {
+    return 0.0f;
+  }
+  float lo = samples_[0];
+  float hi = samples_[0];
+  for (size_t i = 1; i < size_; i++) {
+    if (samples_[i] < lo) {
+      lo = samples_[i];
+    }
+    if (samples_[i] > hi) {
+      hi = samples_[i];
+    }
+  }
+  return hi - lo;
+}

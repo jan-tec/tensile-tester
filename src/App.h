@@ -1,4 +1,5 @@
-// Application orchestration (M0-T009).
+// Application orchestration (M0-T009; depends on the IMotion/
+// ILoadCell contracts since M0-T010).
 //
 // Owns the boot sequence (Serial, Motion, banner, LoadCell calibration
 // load, Web UI start) and the main loop (Web serving, loadcell sampling,
@@ -9,15 +10,15 @@
 #include <Arduino.h>
 
 #include "Commands.h"
-#include "LoadCell.h"
-#include "Motion.h"
+#include "ILoadCell.h"
+#include "IMotion.h"
 #include "SerialCli.h"
 #include "Settings.h"
 #include "WebUi.h"
 
 class App {
  public:
-  App(Settings &settings, Motion &motion, LoadCell &loadcell,
+  App(Settings &settings, IMotion &motion, ILoadCell &loadcell,
       Commands &commands, SerialCli &serialCli, WebUi &webUi)
       : settings_(settings),
         motion_(motion),
@@ -37,8 +38,8 @@ class App {
   static constexpr unsigned long kStatusIntervalMs = 500;
 
   Settings &settings_;
-  Motion &motion_;
-  LoadCell &loadcell_;
+  IMotion &motion_;
+  ILoadCell &loadcell_;
   Commands &commands_;
   SerialCli &serialCli_;
   WebUi &webUi_;

@@ -1,4 +1,4 @@
-// Stepper motion module (M0-T003).
+// Stepper motion module (M0-T003; implements IMotion since M0-T010).
 //
 // Owns the AccelStepper (DRIVER mode), the dedicated FreeRTOS motor task on
 // core 0, and the portMUX that guards every stepper access. Two physical
@@ -12,31 +12,33 @@
 #include <AccelStepper.h>
 #include <Arduino.h>
 
-class Motion {
+#include "IMotion.h"
+
+class Motion : public IMotion {
  public:
   // Pins, AccelStepper config, initial speed, motor task (core 0).
-  void begin();
+  void begin() override;
 
-  void enable();
-  void disable();  // stops motion, turns outputs off
+  void enable() override;
+  void disable() override;  // stops motion, turns outputs off
 
-  void stop();  // stops motion, driver stays enabled
+  void stop() override;  // stops motion, driver stays enabled
 
-  void zero();  // sets the axis position to 0 steps
+  void zero() override;  // sets the axis position to 0 steps
 
-  void setOutputRpm(float rpm);
-  void setAccelRpmPerS(float accelRpmPerS);
-  float outputRpm();
-  float accelRpmPerS();
+  void setOutputRpm(float rpm) override;
+  void setAccelRpmPerS(float accelRpmPerS) override;
+  float outputRpm() override;
+  float accelRpmPerS() override;
 
   // Moves to an absolute step target; enables the driver first (legacy
   // startMoveTo behavior).
-  void startMoveToSteps(long targetSteps);
+  void startMoveToSteps(long targetSteps) override;
 
-  bool isEnabled();
-  bool isRunning();
-  long steps();
-  float positionMm();
+  bool isEnabled() override;
+  bool isRunning() override;
+  long steps() override;
+  float positionMm() override;
 
  private:
   void applySettings();

@@ -1,6 +1,7 @@
 #include <FirmwareCore.h>
 #include <WiFi.h>
 
+#include "Diagnostics.h"
 #include "UiHtml.h"
 
 #include "WebUi.h"
@@ -62,7 +63,42 @@ String WebUi::statusJson() {
   json += WIFI_SSID;
   json += " | IP ";
   json += WiFi.softAPIP().toString();
-  json += "\"}";
+  json += "\"";
+
+  // FR-008: device state + the boot selftest object (overall + checks[]).
+  const DeviceModel &model = diagnostics_.model();
+  json += ",\"state\":\"";
+  json += deviceStateName(model.state());
+  json += "\"";
+  json += ",\"faultCode\":";
+  json += String(model.faultCode());
+
+  size_t count = 0;
+  const CheckResult *checks = diagnostics_.checks(&count);
+  CheckStatus statuses[5] = {};
+  for (size_t i = 0; i < count && i < 5; i++) {
+    statuses[i] = checks[i].status;
+  }
+  json += ",\"selftest\":{\"overall\":\"";
+  json += checkStatusName(overallStatus(statuses, count));
+  json += "\",\"checks\":[";
+  for (size_t i = 0; i < count; i++) {
+    if (i != 0) {
+      json += ",";
+    }
+    json += "{\"id\":\"";
+    json += checkIdName(checks[i].id);
+    json += "\",\"status\":\"";
+    json += checkStatusName(checks[i].status);
+    json += "\",\"errorCode\":";
+    json += String(static_cast<unsigned>(checks[i].errorCode));
+    json += ",\"measurement\":";
+    json += String(checks[i].measurement, 2);
+    json += ",\"elapsedMs\":";
+    json += String(checks[i].elapsedMs);
+    json += "}";
+  }
+  json += "]}}";
   return json;
 }
 

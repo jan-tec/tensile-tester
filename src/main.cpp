@@ -22,7 +22,7 @@ PowerSense powerSense;
 Diagnostics diagnostics;
 Commands commands(motion, loadcell, diagnostics);
 SerialCli serialCli(commands);
-WebUi webUi(commands, motion, loadcell);
+WebUi webUi(commands, motion, loadcell, diagnostics);
 App app(settings, motion, loadcell, powerSense, commands, serialCli, webUi,
         diagnostics);
 }  // namespace

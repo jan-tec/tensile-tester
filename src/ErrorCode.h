@@ -8,6 +8,7 @@
 // the string names below are English ops text, not localized UI text.
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 
 // Stable machine codes (FR-003).
@@ -88,4 +89,20 @@ inline const char* errorCodeName(ErrorCode code) {
     default:
       return "";
   }
+}
+
+// FR-008: overall rating of the /api/status selftest object. Any FAIL
+// dominates, otherwise any WARN. NOT_WIRED / NOT_CONNECTED are info only
+// (D3: absence is not a fault) and never lower the rating.
+inline CheckStatus overallStatus(const CheckStatus* statuses, size_t count) {
+  bool anyWarn = false;
+  for (size_t i = 0; i < count; i++) {
+    if (statuses[i] == CheckStatus::Fail) {
+      return CheckStatus::Fail;
+    }
+    if (statuses[i] == CheckStatus::Warn) {
+      anyWarn = true;
+    }
+  }
+  return anyWarn ? CheckStatus::Warn : CheckStatus::Ok;
 }

@@ -13,13 +13,17 @@
 #include "LoadCell.h"
 #include "Motion.h"
 
+class Diagnostics;
+
 class WebUi {
  public:
-  WebUi(Commands &commands, Motion &motion, LoadCell &loadcell)
+  WebUi(Commands &commands, Motion &motion, LoadCell &loadcell,
+        Diagnostics &diagnostics)
       : server_(80),
         commands_(commands),
         motion_(motion),
-        loadcell_(loadcell) {}
+        loadcell_(loadcell),
+        diagnostics_(diagnostics) {}
 
   // Starts the softAP, registers the routes and starts the server.
   void begin();
@@ -38,4 +42,5 @@ class WebUi {
   Commands &commands_;
   Motion &motion_;
   LoadCell &loadcell_;
+  Diagnostics &diagnostics_;
 };

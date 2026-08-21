@@ -96,6 +96,25 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
       font-size: 1.1rem;
       font-weight: 700;
     }
+    .checks {
+      list-style: none;
+      margin: 12px 0 0;
+      padding: 0;
+    }
+    .checks li {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 6px 0;
+      border-top: 1px solid var(--line);
+      font-size: 0.9rem;
+    }
+    .checks .cid {
+      font-weight: 700;
+    }
+    .ok { color: var(--success); }
+    .warn { color: var(--accent); }
+    .fail { color: var(--danger); }
     .btnrow {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -230,6 +249,17 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
       </section>
 
       <section class="card">
+        <h2>Selbsttest</h2>
+        <div class="status">
+          <div class="pill"><span class="label">Gesamt</span><span class="value" id="selftestOverall">-</span></div>
+          <div class="pill"><span class="label">Zustand</span><span class="value" id="deviceState">-</span></div>
+          <div class="pill"><span class="label">Fehlercode</span><span class="value" id="faultCodeValue">-</span></div>
+        </div>
+        <ul class="checks" id="selftestChecks"></ul>
+        <p class="note" id="selftestNote">Startpruefung wird geladen...</p>
+      </section>
+
+      <section class="card">
         <h2>Achse</h2>
         <div class="btnrow">
           <button class="success" data-cmd="en">Treiber EN</button>
@@ -309,8 +339,72 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
       wifiInfo: document.getElementById("wifiInfo"),
       feedInput: document.getElementById("feedInput"),
       calibrationInfo: document.getElementById("calibrationInfo"),
-      calibrationMassInput: document.getElementById("calibrationMassInput")
+      calibrationMassInput: document.getElementById("calibrationMassInput"),
+      selftestOverall: document.getElementById("selftestOverall"),
+      deviceState: document.getElementById("deviceState"),
+      faultCodeValue: document.getElementById("faultCodeValue"),
+      selftestChecks: document.getElementById("selftestChecks"),
+      selftestNote: document.getElementById("selftestNote")
     };
+
+    let lastSelftestChecksJson = "";
+    const selftestStatusLabel = {
+      "OK": "in Ordnung",
+      "WARN": "Warnung",
+      "FAIL": "Fehler",
+      "NOT_CONNECTED": "nicht verbunden",
+      "NOT_WIRED": "nicht verdrahtet"
+    };
+    const selftestStatusClass = {
+      "OK": "ok",
+      "WARN": "warn",
+      "FAIL": "fail",
+      "NOT_CONNECTED": "warn",
+      "NOT_WIRED": "warn"
+    };
+
+    function renderSelftest(data) {
+      if (!data.selftest) {
+        return;
+      }
+      const selftest = data.selftest;
+      statusFields.selftestOverall.textContent =
+        selftestStatusLabel[selftest.overall] || selftest.overall;
+      statusFields.selftestOverall.className =
+        "value " + (selftestStatusClass[selftest.overall] || "");
+
+      const isError = data.state === "Error";
+      statusFields.deviceState.textContent =
+        isError ? "Fehler" : data.state === "Idle" ? "bereit" : data.state;
+      statusFields.deviceState.className = "value" + (isError ? " fail" : "");
+      statusFields.faultCodeValue.textContent = data.faultCode
+        ? "0x" + data.faultCode.toString(16).toUpperCase().padStart(4, "0")
+        : "keiner";
+
+      const checksJson = JSON.stringify(selftest.checks);
+      if (checksJson !== lastSelftestChecksJson) {
+        lastSelftestChecksJson = checksJson;
+        statusFields.selftestChecks.innerHTML = "";
+        selftest.checks.forEach((check) => {
+          const row = document.createElement("li");
+          const name = document.createElement("span");
+          name.className = "cid";
+          name.textContent = check.id;
+          const detail = document.createElement("span");
+          detail.textContent = selftestStatusLabel[check.status] || check.status;
+          detail.className = selftestStatusClass[check.status] || "";
+          row.appendChild(name);
+          row.appendChild(detail);
+          statusFields.selftestChecks.appendChild(row);
+        });
+      }
+
+      statusFields.selftestNote.textContent = isError
+        ? "Fehlerzustand: Motorkommandos gesperrt, Reboot noetig."
+        : selftest.overall === "WARN"
+          ? "Warnungen aus der Startpruefung, Maschine betriebsbereit."
+          : "Startpruefung ohne Auffaellige.";
+    }
 
     function setMessage(text, isError = false) {
       messageEl.textContent = text;
@@ -392,6 +486,7 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
         if (document.activeElement !== statusFields.feedInput) {
           statusFields.feedInput.value = Number(data.feedMmPerMin).toFixed(2);
         }
+        renderSelftest(data);
 
         if (typeof data.forceNewton === "number") {
           forceHistory.push(data.forceNewton);

@@ -156,3 +156,41 @@ ParseResult parseCommandValue(const char* command, const char* prefix,
   *value = parsed;
   return ParseResult::Ok;
 }
+
+// ---------------------------------------------------------------------------
+// Device state machine (M1 FR-001). Transition table pinned in
+// test/test_device_model.cpp: invalid events are no-ops, a FAIL check or a
+// runtime power fault moves the device to Error, and Reset is the only way
+// out of Error (FR-009: recovery by reset/reboot).
+// ---------------------------------------------------------------------------
+
+void DeviceModel::dispatch(DeviceEvent event, uint16_t code) {
+  switch (event) {
+    case DeviceEvent::Reset:
+      state_ = DeviceState::Booting;
+      faultCode_ = 0;
+      break;
+    case DeviceEvent::SelfTestStart:
+      if (state_ == DeviceState::Booting) {
+        state_ = DeviceState::SelfTest;
+      }
+      break;
+    case DeviceEvent::CheckResult:
+      if (state_ == DeviceState::SelfTest && code != 0) {
+        state_ = DeviceState::Error;
+        faultCode_ = code;
+      }
+      break;
+    case DeviceEvent::SelfTestDone:
+      if (state_ == DeviceState::SelfTest) {
+        state_ = DeviceState::Idle;
+      }
+      break;
+    case DeviceEvent::PowerLow:
+      if (state_ == DeviceState::Idle && code != 0) {
+        state_ = DeviceState::Error;
+        faultCode_ = code;
+      }
+      break;
+  }
+}

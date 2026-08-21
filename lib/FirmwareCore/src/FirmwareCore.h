@@ -96,3 +96,33 @@ enum class ParseResult {
 // non-matching tokens yield NotACommand (legacy unknown-command fallthrough).
 ParseResult parseCommandValue(const char* command, const char* prefix,
                               float* value);
+
+// ---------------------------------------------------------------------------
+// Device state machine (pure). M1 FR-001: Booting -> SelfTest -> Idle |
+// Error. No hardware here; the caller (Diagnostics) disables the motor
+// driver whenever faultCode() != 0. See test/test_device_model.cpp for the
+// pinned transition table (TC-001, 100% coverage).
+// ---------------------------------------------------------------------------
+
+enum class DeviceState { Booting, SelfTest, Idle, Error };
+
+// Events the host code feeds the model. CheckResult/PowerLow carry the
+// stable machine code (0x01xx NVS, 0x02xx power, 0x03xx HX711, 0x04xx
+// motor); 0 means OK/WARN (no fault code).
+enum class DeviceEvent { SelfTestStart, CheckResult, SelfTestDone, PowerLow,
+                         Reset };
+
+class DeviceModel {
+ public:
+  DeviceState state() const { return state_; }
+  // 0 = no fault; otherwise the code that caused the Error transition
+  // (first fault wins; cleared by Reset).
+  uint16_t faultCode() const { return faultCode_; }
+
+  // Invalid events (e.g. SelfTestDone in Booting) are no-ops.
+  void dispatch(DeviceEvent event, uint16_t code = 0);
+
+ private:
+  DeviceState state_ = DeviceState::Booting;
+  uint16_t faultCode_ = 0;
+};

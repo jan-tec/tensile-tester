@@ -82,6 +82,12 @@ enum class Command {
 
 Command commandFromName(const char* name);
 
+// FR-009: true if the command would drive the motion system (en/off/zero/
+// stop/jog + the rpm/acc/feed/move/turn value prefixes). Used to reject
+// motion commands in the Error state; readout (pos/force) and
+// loadcell/calibration commands stay usable.
+bool isMotionCommand(const char* command);
+
 // Result of parsing a value command. NQP #43 (fix): the legacy two-state
 // parser turned garbage into 0.0 (misleading "> 0" error) and truncated
 // trailing junk ("5abc" == 5); both are now a distinct InvalidValue.

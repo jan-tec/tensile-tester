@@ -1,5 +1,7 @@
 #include "Commands.h"
 
+#include "Diagnostics.h"
+
 const char *Commands::helpText() {
   return "Verfuegbare Kommandos: en, off, zero, tare, force, pos, stop, "
          "rpm, acc, feed, move, turn, jog up, jog down, cal_zero, cal_apply";
@@ -36,6 +38,20 @@ bool Commands::execute(String command, String &response) {
   command.trim();
   if (command.isEmpty()) {
     response = "Leeres Kommando.";
+    return false;
+  }
+
+  // FR-009: in the Error state the driver stays off; motion commands
+  // are rejected with the fault code + message. Recovery by reset/reboot.
+  const DeviceModel &model = diagnostics_.model();
+  if (model.state() == DeviceState::Error &&
+      isMotionCommand(command.c_str())) {
+    char buffer[96];
+    snprintf(buffer, sizeof(buffer),
+             "Fehlerzustand (Code 0x%04X): Motorkommandos gesperrt, "
+             "Reboot noetig.",
+             model.faultCode());
+    response = String(buffer);
     return false;
   }
 

@@ -30,6 +30,16 @@ void App::loop() {
   powerSense_.poll();
   diagnostics_.reportRuntimePowerState(powerSense_.state());
 
+  // FR-009: on the transition into Error the driver must be off
+  // (boot faults already disable it in Diagnostics; this covers the
+  // runtime power path).
+  const DeviceState modelState = diagnostics_.model().state();
+  if (modelState == DeviceState::Error &&
+      lastModelState_ != DeviceState::Error) {
+    motion_.disable();
+  }
+  lastModelState_ = modelState;
+
   const unsigned long now = millis();
   if (now - lastStatusMs_ >= kStatusIntervalMs) {
     lastStatusMs_ = now;

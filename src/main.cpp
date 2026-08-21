@@ -19,10 +19,10 @@ Settings settings;
 Motion motion;
 LoadCell loadcell;
 PowerSense powerSense;
-Commands commands(motion, loadcell);
+Diagnostics diagnostics;
+Commands commands(motion, loadcell, diagnostics);
 SerialCli serialCli(commands);
 WebUi webUi(commands, motion, loadcell);
-Diagnostics diagnostics;
 App app(settings, motion, loadcell, powerSense, commands, serialCli, webUi,
         diagnostics);
 }  // namespace

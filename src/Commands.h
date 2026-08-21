@@ -18,10 +18,12 @@
 #include "LoadCell.h"
 #include "Motion.h"
 
+class Diagnostics;
+
 class Commands {
  public:
-  Commands(Motion &motion, LoadCell &loadcell)
-      : motion_(motion), loadcell_(loadcell) {}
+  Commands(Motion &motion, LoadCell &loadcell, Diagnostics &diagnostics)
+      : motion_(motion), loadcell_(loadcell), diagnostics_(diagnostics) {}
 
   // Runs one command (trimmed or untrimmed) and fills response with the
   // German status text. Returns true on success. The serial caller
@@ -50,4 +52,5 @@ class Commands {
 
   Motion &motion_;
   LoadCell &loadcell_;
+  Diagnostics &diagnostics_;
 };

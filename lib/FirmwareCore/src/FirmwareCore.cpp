@@ -114,21 +114,50 @@ Command commandFromName(const char* name) {
   return Command::Unknown;
 }
 
-ParseResult parseCommandValue(const char* command, const char* prefix,
-                              float* value) {
+bool startsWithCommandPrefix(const char* command, const char* prefix) {
   const size_t prefixLen = strlen(prefix);
   if (strncmp(command, prefix, prefixLen) != 0) {
-    return ParseResult::NotACommand;
+    return false;
   }
   // NQP #42 (fix): the prefix must end at a word boundary (whitespace or
   // end-of-string), so "rpmx 5" is not dispatched as "rpm".
   const char boundary = command[prefixLen];
-  if (boundary != '\0' && strchr(kCommandWhitespace, boundary) == nullptr) {
+  return boundary == '\0' || strchr(kCommandWhitespace, boundary) != nullptr;
+}
+
+bool isMotionCommand(const char* command) {
+  if (command == nullptr || command[0] == '\0') {
+    return false;
+  }
+  switch (commandFromName(command)) {
+    case Command::Enable:
+    case Command::Disable:
+    case Command::Zero:
+    case Command::Stop:
+    case Command::JogUp:
+    case Command::JogDown:
+      return true;
+    default:
+      break;
+  }
+  static const char* const kMotionPrefixes[] = {
+      "rpm", "acc", "feed", "move", "turn"};
+  for (const char* prefix : kMotionPrefixes) {
+    if (startsWithCommandPrefix(command, prefix)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+ParseResult parseCommandValue(const char* command, const char* prefix,
+                              float* value) {
+  if (!startsWithCommandPrefix(command, prefix)) {
     return ParseResult::NotACommand;
   }
 
   char number[48];
-  trimCopy(command + prefixLen, number, sizeof(number));
+  trimCopy(command + strlen(prefix), number, sizeof(number));
   if (number[0] == '\0') {
     return ParseResult::NotACommand;
   }

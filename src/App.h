@@ -51,4 +51,5 @@ class App {
   WebUi &webUi_;
   Diagnostics &diagnostics_;
   unsigned long lastStatusMs_ = 0;
+  DeviceState lastModelState_ = DeviceState::Booting;
 };

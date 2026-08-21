@@ -144,6 +144,45 @@ void test_parse_command_value_requires_word_boundary(void) {
   TEST_ASSERT_FLOAT_WITHIN(0.0001f, 2.0f, value);
 }
 
+void test_is_motion_command_named(void) {
+  // FR-009: name commands that drive the motion system.
+  TEST_ASSERT_TRUE(isMotionCommand("en"));
+  TEST_ASSERT_TRUE(isMotionCommand("off"));
+  TEST_ASSERT_TRUE(isMotionCommand("zero"));
+  TEST_ASSERT_TRUE(isMotionCommand("stop"));
+  TEST_ASSERT_TRUE(isMotionCommand("jog up"));
+  TEST_ASSERT_TRUE(isMotionCommand("jog down"));
+  TEST_ASSERT_TRUE(isMotionCommand("  en "));  // trimmed by caller, still true
+}
+
+void test_is_motion_command_prefix(void) {
+  // Value commands with the NQP #42 word-boundary rule.
+  TEST_ASSERT_TRUE(isMotionCommand("rpm 6"));
+  TEST_ASSERT_TRUE(isMotionCommand("acc 20"));
+  TEST_ASSERT_TRUE(isMotionCommand("feed 12"));
+  TEST_ASSERT_TRUE(isMotionCommand("move 10"));
+  TEST_ASSERT_TRUE(isMotionCommand("turn 2"));
+  TEST_ASSERT_TRUE(isMotionCommand("turn"));  // bare prefix still drives motion
+}
+
+void test_is_motion_command_rejects_non_motion(void) {
+  TEST_ASSERT_FALSE(isMotionCommand("pos"));
+  TEST_ASSERT_FALSE(isMotionCommand("force"));
+  TEST_ASSERT_FALSE(isMotionCommand("tare"));
+  TEST_ASSERT_FALSE(isMotionCommand("cal_zero"));
+  TEST_ASSERT_FALSE(isMotionCommand("cal_apply 100"));
+  TEST_ASSERT_FALSE(isMotionCommand("bogus"));
+  TEST_ASSERT_FALSE(isMotionCommand(""));
+  TEST_ASSERT_FALSE(isMotionCommand(nullptr));
+}
+
+void test_is_motion_command_requires_word_boundary(void) {
+  // Same boundary rule as the parser (NQP #42 pin): "rpmx 5" is not "rpm".
+  TEST_ASSERT_FALSE(isMotionCommand("rpmx 5"));
+  TEST_ASSERT_FALSE(isMotionCommand("feedx 1"));
+  TEST_ASSERT_FALSE(isMotionCommand("turnkey"));
+}
+
 void runCommandParserTests() {
   RUN_TEST(test_command_from_name_exact);
   RUN_TEST(test_command_from_name_trims_whitespace);
@@ -157,4 +196,8 @@ void runCommandParserTests() {
   RUN_TEST(test_parse_command_value_trailing_junk_is_invalid);
   RUN_TEST(test_parse_command_value_non_finite_is_invalid);
   RUN_TEST(test_parse_command_value_requires_word_boundary);
+  RUN_TEST(test_is_motion_command_named);
+  RUN_TEST(test_is_motion_command_prefix);
+  RUN_TEST(test_is_motion_command_rejects_non_motion);
+  RUN_TEST(test_is_motion_command_requires_word_boundary);
 }

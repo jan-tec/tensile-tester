@@ -9,7 +9,7 @@ WiFi-AP web UI, serial CLI.
 | Path | Purpose |
 |------|---------|
 | `src/main.cpp` | Composition root (31 lines): global module wiring + `setup()`/`loop()` delegation to App |
-| `src/App.{h,cpp}` | Orchestration: boot sequence (Serial, Motion, banner, LoadCell, Web) + main loop |
+| `src/App.{h,cpp}` | Orchestration: boot sequence (Serial, Motion, banner, LoadCell, Diagnostics selftest, Web) + main loop + driver-off on Error (FR-009) |
 | `src/Commands.{h,cpp}` | Command policy: `execute()` shared by serial and Web; FirmwareCore parser via `String` adapter |
 | `src/SerialCli.{h,cpp}` | Serial 115200 input loop (line buffer, CR skip, LF dispatch, help on unknown) |
 | `src/WebUi.{h,cpp}` | WebServer, softAP, routes `/`, `/api/status`, `/api/command`, `statusJson` |
@@ -17,8 +17,11 @@ WiFi-AP web UI, serial CLI.
 | `src/Motion.{h,cpp}` | AccelStepper (DRIVER), motor task (core 0), `portMUX`, enable/disable, moves, rpm/accel |
 | `src/LoadCell.{h,cpp}` | HX711 10 Hz sampling + low-pass (0.18), tare, two-step calibration |
 | `src/Settings.{h,cpp}` | NVS Preferences namespace `testmachine`: calibration factor + valid flag |
+| `src/Diagnostics.{h,cpp}` | Boot selftest (SelfTest state): 5 checks BOARD/NVS/POWER/HX711/MOTOR, `BOOT`/`STATE`/`CHECK` log grammar (FR-007), owns the DeviceModel |
+| `src/PowerSense.{h,cpp}` | 5 V rail sense: GPIO34 10 k/10 k divider, one-shot boot read + 1 Hz runtime monitor (FR-005) |
+| `src/ErrorCode.h` | Stable machine codes + check vocabulary (pure, host-testable) - never renumber codes |
 | `src/IMotion.h`, `src/ILoadCell.h` | Contracts (FR-007): App depends on them, Motion/LoadCell implement them |
-| `lib/FirmwareCore/` | Pure C++ gear/feed math + command parser (no Arduino) - unit-tested on the host |
+| `lib/FirmwareCore/` | Pure C++ gear/feed math, command parser, device state machine, health evaluation (no Arduino) - unit-tested on the host |
 | `test/` | Unity host tests (`pio test -e native`) |
 | `standalone_tests/` | Debug sketches (blink, raw loadcell, motor menu) - NOT built automatically (see below) |
 | `include/` | Empty scaffolding, README only |
@@ -109,6 +112,15 @@ mv /tmp/main.cpp.bak src/main.cpp
   `main.cpp` is a composition root; `App` orchestrates; `Commands::execute()`
   is the single command policy. `App` depends on the `IMotion`/`ILoadCell`
   contracts (FR-007). No dynamic allocation anywhere (no `new`/`delete`).
+- **Boot selftest + Error state (M1, 2026-08):** boot runs 5 checks in the
+  SelfTest state (BOARD, NVS, POWER, HX711, MOTOR) logging `BOOT`/`STATE`/
+  `CHECK` lines; stable machine codes live in `src/ErrorCode.h` (never
+  renumber). Any FAIL -> Error state: driver disabled, motion commands
+  rejected on serial + Web with code + message (FR-009); recovery is
+  reset/reboot only. `/api/status` carries `state`, `faultCode`,
+  `selftest{overall,checks[]}`; the web "Selbsttest" card renders them.
+  Rail-sense hardware (10 k/10 k divider on GPIO34) + reading the POWER
+  check: `docs/hardware-power-check.md`.
 - **WiFi AP mode only**, hardcoded SSID `ESP32-Testmaschine` / `testmaschine`.
   Web UI at the softAP IP (default 192.168.4.1; exact IP printed to serial and
   in `/api/status` field `network`).

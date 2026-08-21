@@ -43,9 +43,13 @@ Runtime: `App::loop()` ticks `Diagnostics::tickRuntime()` at 1 Hz
 | BOARD | reset reason, free heap > 30 KB, flash 4 MB | values logged | OK |
 | NVS | `Preferences` open, calibration config sane | opens (first boot: NOT_FOUND -> defaults) | OK |
 | POWER | GPIO34 divider | not wired | NOT_WIRED (info) |
-| HX711 | `wait_ready` 1000 ms | timeout | NOT_CONNECTED (WARN) |
+| HX711 | `wait_ready` 1000 ms + 500 ms variance window | load cell wired, no load change | WARN 0x301 NO_VARIATION; NOT_CONNECTED only if the load cell is absent |
 | MOTOR | EN toggle | toggles | OK (NO_FEEDBACK note) |
 | overall | - | warnings only | **Idle** |
+
+Observed on the current bench 2026-08-21 (no wiring): matches the table
+above, `Idle` at t=1.040 s. Full capture + SC-001 correction note:
+`docs/hardware-power-check.md` §TC-003(a).
 
 ## 5. TDD Mapping
 

@@ -13,6 +13,22 @@ and API).
 
 ### Added
 
+- M1 startup selftest + health diagnostics (2026-08-21, #20-#29): boot
+  selftest of 5 checks (BOARD, NVS, POWER, HX711, MOTOR) with stable
+  machine codes in `src/ErrorCode.h` and the `BOOT`/`STATE`/`CHECK` log
+  grammar (FR-002 to FR-007); device state machine
+  (Booting -> SelfTest -> Idle/Error) host-tested in `lib/FirmwareCore/`;
+  5 V rail sense on GPIO34 (boot POWER check + 1 Hz runtime monitor with
+  hysteresis and 5-sample debounce, FR-005); build/verify/interpret
+  reference in `docs/hardware-power-check.md` (TC-003(a) no-wiring
+  matrix captured, bench reaches Idle at 1.04 s, SC-001)
+- Error state behavior (FR-009, #28): any selftest FAIL -> Error state:
+  driver disabled, motion commands rejected on serial and Web with code
+  + message; recovery by reset/reboot only
+- Selftest presentation (FR-008, #29): `GET /api/status` carries
+  `state`, `faultCode` and `selftest{overall,checks[]}` with stable
+  machine names; new "Selbsttest" card in the web UI; `overallStatus()`
+  in `src/ErrorCode.h` (host-tested, 60/60)
 - M0 module split (2026-08-19 to 21, #8-#17): `src/` is modular: `App`
   (orchestration), `Commands` (shared command policy), `SerialCli` (serial
   input loop), `WebUi` (softAP + routes), `Motion` (stepper task), `LoadCell`
@@ -53,6 +69,9 @@ and API).
 
 ### Changed
 
+- `GET /api/status`: `forceNewton` is now the string `"n/a"` when the
+  load cell is not ready, instead of a zero reading (SC-003, #24); the
+  web UI shows `n/a` in the force panel for the same case
 - Behavior-preserving refactor of the monolithic `src/main.cpp` into the M0
   modules above (T002-T010): serial command set, Web API, boot log, and UI
   byte-identical; each module verified by host tests + target smoke (serial

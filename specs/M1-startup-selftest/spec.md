@@ -92,8 +92,12 @@ As a maintainer, I want a stable log grammar for headless diagnosis.
 
 ## Success Criteria
 
-- **SC-001:** Boot on the current bench (no wiring) reaches `Idle` within
-  5 s with `HX711 NOT_CONNECTED` + `POWER NOT_WIRED` warnings.
+- **SC-001:** Boot on the current bench (power divider not wired) reaches
+  `Idle` within 5 s with warnings only: `POWER NOT_WIRED`, and
+  `HX711 NOT_CONNECTED` (load cell absent) or
+  `HX711 WARN HX711_NO_VARIATION 0x301` (load cell present, no load
+  change in the 500 ms variance window). Verified 2026-08-21: `Idle` at
+  t=1.040 s (`docs/hardware-power-check.md`, TC-003(a)).
 - **SC-002:** Every `FAIL` carries code + human message visible on serial
   and Web UI.
 - **SC-003:** Motion fully operable with the load cell absent (force

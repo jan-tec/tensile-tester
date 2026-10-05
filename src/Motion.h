@@ -2,7 +2,9 @@
 //
 // Owns the AccelStepper (DRIVER mode), the dedicated FreeRTOS motor task on
 // core 0, and the portMUX that guards every stepper access. Two physical
-// motors are driven synchronously from the same STEP/DIR/EN signals.
+// motors are driven synchronously from the same STEP/DIR signals; each
+// driver has its own active-low EN line (EN1 GPIO5, EN2 GPIO23), always
+// switched together.
 //
 // Gear/feed conversion (steps per mm, rpm to steps/s) stays in
 // lib/FirmwareCore; command handlers compute step targets with it and hand
@@ -56,7 +58,8 @@ class Motion : public IMotion {
 
   static constexpr uint8_t kDirPin = 19;
   static constexpr uint8_t kStepPin = 18;
-  static constexpr uint8_t kEnPin = 5;
+  static constexpr uint8_t kEnPin = 5;    // EN1, motor 1 (active low)
+  static constexpr uint8_t kEn2Pin = 23;  // EN2, motor 2 (active low)
 
   AccelStepper stepper_ =
       AccelStepper(AccelStepper::DRIVER, kStepPin, kDirPin);

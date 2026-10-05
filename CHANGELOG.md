@@ -13,6 +13,8 @@ and API).
 
 ### Added
 
+- Second driver enable line: EN2 (motor 2) on GPIO23, switched together
+  with EN1 (motor 1, GPIO5) on enable/disable and at boot (2026-10-05).
 - M1 startup selftest + health diagnostics (2026-08-21, #20-#29): boot
   selftest of 5 checks (BOARD, NVS, POWER, HX711, MOTOR) with stable
   machine codes in `src/ErrorCode.h` and the `BOOT`/`STATE`/`CHECK` log

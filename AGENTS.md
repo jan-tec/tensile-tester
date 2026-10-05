@@ -133,7 +133,8 @@ mv /tmp/main.cpp.bak src/main.cpp
 - **Stepper runs in a dedicated FreeRTOS task on core 0 (inside `Motion`)**;
   every stepper access is wrapped in `portMUX` critical sections. Never block
   inside them. Two physical motors are driven synchronously from the same
-  STEP/DIR/EN signals.
+  STEP/DIR signals; each driver has its own active-low EN line (EN1 GPIO5,
+  EN2 GPIO23), always switched together in `Motion::enable()/disable()`.
 - Gear math (200 steps/rev x 13.73 gear x 8 microsteps = 21968 steps per
   spindle revolution, spindle pitch 2 mm/rev) and the command parser live in
   `lib/FirmwareCore/`, unit-tested on the host. Keep the gear constants in

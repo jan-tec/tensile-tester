@@ -8,7 +8,7 @@ void App::begin() {
   delay(500);
   Serial.println();
   Serial.println("ESP32 Pruefmaschinen-Steuerung gestartet.");
-  Serial.println("Zwei Motoren laufen synchron ueber dieselben STEP/DIR/EN-Signale.");
+  Serial.println("Zwei Motoren laufen synchron ueber dieselben STEP/DIR-Signale (EN1/EN2 gemeinsam geschaltet).");
 
   loadcell_.begin(settings_);
   powerSense_.begin();

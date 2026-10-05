@@ -12,6 +12,8 @@ void Motion::begin() {
 
   pinMode(kEnPin, OUTPUT);
   digitalWrite(kEnPin, HIGH);
+  pinMode(kEn2Pin, OUTPUT);
+  digitalWrite(kEn2Pin, HIGH);
 
   stepper_.setEnablePin(kEnPin);
   stepper_.setPinsInverted(false, false, true);
@@ -27,6 +29,7 @@ void Motion::begin() {
 void Motion::enable() {
   portENTER_CRITICAL(&mux_);
   digitalWrite(kEnPin, LOW);
+  digitalWrite(kEn2Pin, LOW);
   stepper_.enableOutputs();
   driverEnabled_ = true;
   portEXIT_CRITICAL(&mux_);
@@ -37,6 +40,7 @@ void Motion::disable() {
   stepper_.stop();
   stepper_.disableOutputs();
   digitalWrite(kEnPin, HIGH);
+  digitalWrite(kEn2Pin, HIGH);
   driverEnabled_ = false;
   portEXIT_CRITICAL(&mux_);
 }

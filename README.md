@@ -9,7 +9,7 @@ WiFi web UI or the serial CLI. The machine UI is in German.
 | Component | Model / value |
 |-----------|---------------|
 | MCU | ESP32 (PlatformIO board `esp32dev`) |
-| Stepper driver | TMC2209, plain STEP/DIR/EN (no UART configuration wired) |
+| Stepper driver | TMC2209, plain STEP/DIR/EN (shared STEP/DIR, EN1/EN2 per driver; no UART configuration wired) |
 | Stepper motor | NEMA 17, 200 full steps/rev, x2 (run synchronously on the same signals) |
 | Gearbox | 13.73:1 |
 | Spindle pitch | 2 mm/rev |
@@ -21,7 +21,8 @@ WiFi web UI or the serial CLI. The machine UI is in German.
 |--------|------|-------|
 | STEP | 18 | |
 | DIR | 19 | |
-| EN | 5 | active low (LOW = driver enabled) |
+| EN1 | 5 | motor 1 driver, active low (LOW = driver enabled) |
+| EN2 | 23 | motor 2 driver, active low, switched together with EN1 |
 | HX711 DOUT | 32 | |
 | HX711 SCK | 33 | |
 

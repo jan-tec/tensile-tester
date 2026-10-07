@@ -308,3 +308,18 @@ const char* deviceStateName(DeviceState state) {
   }
   return "?";
 }
+
+Locale localeFromName(const char* name) {
+  if (name != nullptr && strcmp(name, "de") == 0) {
+    return Locale::De;
+  }
+  // FR-002 default: NULL, empty, "en", anything unknown.
+  return Locale::En;
+}
+
+int resolveMsgTable(Locale locale, bool deEntryExists) {
+  if (locale == Locale::De && deEntryExists) {
+    return 1;
+  }
+  return 0;
+}

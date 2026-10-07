@@ -105,6 +105,26 @@ ParseResult parseCommandValue(const char* command, const char* prefix,
                               float* value);
 
 // ---------------------------------------------------------------------------
+// Locale model (pure). M2 FR-002 / TC-001: the UI locale selects the string
+// table in src/Text; the pure part here is the parse (default En on
+// NULL/empty/unknown - the factory-fresh / NVS-missing-key case) and the
+// table resolution (a missing DE entry falls back to EN).
+// ---------------------------------------------------------------------------
+
+enum class Locale { En, De };
+
+// Parse a locale name ("en"/"de", case-sensitive like the command names).
+// NULL/empty/anything else -> En (the FR-002 default).
+Locale localeFromName(const char* name);
+
+// String-table index for msg resolution in src/Text: 0 = EN table,
+// 1 = DE table. `deEntryExists` mirrors whether the DE table row for the
+// message is non-empty (TC-002 pins every row non-empty; an empty row is
+// the designed EN-fallback path). Under En the DE availability is
+// irrelevant: always 0.
+int resolveMsgTable(Locale locale, bool deEntryExists);
+
+// ---------------------------------------------------------------------------
 // Device state machine (pure). M1 FR-001: Booting -> SelfTest -> Idle |
 // Error. No hardware here; the caller (Diagnostics) disables the motor
 // driver whenever faultCode() != 0. See test/test_device_model.cpp for the

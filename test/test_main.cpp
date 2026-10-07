@@ -11,6 +11,7 @@ extern void runCalibrationTests();
 extern void runDeviceModelTests();
 extern void runHealthEvalTests();
 extern void runErrorCodeTests();
+extern void runLocaleTests();
 
 void setUp(void) {}
 void tearDown(void) {}
@@ -23,5 +24,6 @@ int main(void) {
   runDeviceModelTests();
   runHealthEvalTests();
   runErrorCodeTests();
+  runLocaleTests();
   return UNITY_END();
 }

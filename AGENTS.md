@@ -162,9 +162,10 @@ mv /tmp/main.cpp.bak src/main.cpp
 
 ## Conventions
 
-- German text in firmware and UI is **ASCII-transcribed** (ae/oe/ue/ss, e.g.
-  `Waegezelle`, `gueltige`). Keep source ASCII-only - do not introduce
-  umlauts into .cpp/.ini.
+- UI text is locale-table driven (`specs/M2-i18n-de-en/spec.md`): serial
+  DE output uses ASCII transcription (ae/oe/ue/ss), web DE uses native
+  umlauts (UTF-8). Keep source ASCII-only - do not introduce umlauts into
+  .cpp/.ini.
 - Remotes: `origin` = satwareAG-ironMike/tensile-tester (mirror),
   `upstream` = jan-tec/tensile-tester (single branch `main`).
 - **`gh` guardrail**: this workstation's shell exports

@@ -13,8 +13,26 @@ and API).
 
 ### Added
 
-- Second driver enable line: EN2 (motor 2) on GPIO23, switched together
-  with EN1 (motor 1, GPIO5) on enable/disable and at boot (2026-10-05).
+- Feature specifications M3-M7 (2026-10-07, #75/#77/#78/#84): automated
+  tensile test cycle, constant-force hold, load cell calibration wizard
+  with physics-window guard, structured JSON serial API, web UI redesign
+  (draft)
+- `Locale` resolution in `FirmwareCore` (M2-T001, 2026-10-07, #74):
+  locale parse + string-table index with EN fallback, host-tested RED-first
+- FastAccelStepper (RMT) motion (2026-10-07, #71): hardware-timed steps,
+  3 MB app partition (`huge_app.csv`); second driver enable line: EN2
+  (motor 2) on GPIO23, switched together with EN1 (motor 1, GPIO5) on
+  enable/disable and at boot
+
+### Changed
+
+- Native test env pins gnu++17 (2026-10-07, #73): AppleClang defaults to
+  C++98 and rejected `constexpr`/`enum class`; explicit flag makes host
+  tests compiler-independent
+- Project language switched to English-primary (2026-10-07, M2 FR-008):
+  docs, specs, and changelog in English; UI text becomes locale-table
+  driven (M2 in progress)
+
 - M1 startup selftest + health diagnostics (2026-08-21, #20-#29): boot
   selftest of 5 checks (BOARD, NVS, POWER, HX711, MOTOR) with stable
   machine codes in `src/ErrorCode.h` and the `BOOT`/`STATE`/`CHECK` log

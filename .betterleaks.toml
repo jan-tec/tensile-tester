@@ -1,0 +1,18 @@
+# betterleaks configuration - extends the default rule set (mandatory,
+# harness #1032: a config without rules disables ALL detection).
+[extend]
+useDefault = true
+
+# The softAP password in README.md is public by design: the ESP32 exposes
+# an open-access WiFi AP (`ESP32-Testmaschine` / `testmaschine`) and the
+# same credential is hardcoded in the firmware source. Nothing to protect.
+[[allowlists]]
+description = "Bench-accepted: device-local softAP credential"
+paths = ['''README\.md$''']
+regexes = ['''testmaschine''']
+
+# Dependency documentation under the gitignored build dir - example
+# passwords in FastAccelStepper's demo docs are not our content.
+[[allowlists]]
+description = "Third-party docs in the gitignored build dir"
+paths = ['''\.pio/''']

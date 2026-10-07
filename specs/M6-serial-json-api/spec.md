@@ -61,10 +61,10 @@ As a host computer, I still pull measurement series as CSV.
   command).
 - **FR-003 (Full command set):** all existing and planned commands speak
   the envelope: `en` `off` `zero` `tare` `pos` `force` `stop` `rpm` `acc`
-  `feed` `move` `turn` `jog` `help` `cal_zero` `cal_apply` `cal_suggest`
-  `cal_reset_max` `home` `test` `testspeed` `testarm` `testdrop` `data`
-  `testdata` `chold` `choltol` `choldclear`. `help` returns the command
-  list as a JSON array in `data`.
+  `feed` `move` `turn` `jog` `help` `cal_zero` `cal_apply` `calibrate`
+  `cal_next` `home` `home top` `test` `testspeed` `testarm` `testdrop`
+  `data` `testdata` `chold` `choltol` `choldclear`. `help` returns the
+  command list as a JSON array in `data`.
 - **FR-004 (Stable error codes):** API error codes live in the stable
   vocabulary (`ErrorCode.h` rule: append, never renumber); message strings
   are English (M2), error codes are the machine contract. Machines parse

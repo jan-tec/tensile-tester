@@ -56,17 +56,33 @@ As an operator, I am protected against endstop faults and runtime power loss.
 
 ### Functional
 
-- **FR-001 (Homing):** `home` first backs off upward by the homing clearance
-  (configurable, default 2 mm; bounded by Endstop 2 - if D26 trips during
-  back-off, the seek starts immediately from there), then seeks downward at
-  the homing seek speed until the bottom endstop (Endstop 1, GPIO 25,
-  COM+NC, pressed = HIGH) triggers, then backs off to a defined datum and
-  sets position zero (spindle mm) there. Because the clearance always
+- **FR-001 (Homing, two-stage per GRBL practice):** `home` first backs off
+  upward by the homing clearance (configurable, default 2 mm; bounded by
+  Endstop 2 - if D26 trips during back-off, the seek starts immediately
+  from there), then seeks downward at the homing seek speed until the
+  bottom endstop (Endstop 1, GPIO 25, COM+NC, pressed = HIGH) triggers,
+  backs off upward by the clearance again, and re-seeks at the slow final
+  speed (default 25% of seek speed) until the endstop re-triggers - the
+  second touch defines the datum, switch bounce settled (GRBL two-stage
+  homing + debounce-delay practice; operator request #81 "entprellen").
+  The re-seek covers exactly the clearance distance: a re-trigger before
+  it is consumed = stuck switch -> Error state (same instant-trigger
+  rule, second stage).
+  The datum is position zero (spindle mm). Because the clearance always
   precedes the seek, a trigger before the clearance is consumed =
   instant-trigger = broken wire -> Error state (never a phantom datum, and
-  never a false fault for a carriage legitimately near the stop). Homing is
-  idempotent: running it twice yields the same datum within one motor step.
-- **FR-002 (Test cycle):** `test` performs: (1) home on Endstop 1, (2) arm
+  never a false fault for a carriage legitimately near the stop). Homing
+  is idempotent: running it twice yields the same datum within one motor
+  step.
+- **FR-008 (Home top, positioning utility):** `home top` seeks upward at
+  the seek speed until Endstop 2 (GPIO 26) triggers, then backs off
+  downward by the clearance. It does NOT redefine the position datum -
+  position zero stays the bottom datum (FR-006); `home top` exists for
+  sample insertion at upper positions and full-travel verification, and
+  reports the reached travel span when the bottom datum is known.
+- **FR-002 (Test cycle):** `test` performs: (1) home on Endstop 1 if not
+  already homed this session (an existing datum is kept - the operator may
+  have inserted the sample after homing; #81), (2) arm
   the break detector, (3) pull upward at the configured test speed, (4) on
   break detection stop the motor (forceStop semantics), (5) keep sampling a
   fixed tail window (1 s) to capture the force drop, (6) report the summary
@@ -87,7 +103,7 @@ As an operator, I am protected against endstop faults and runtime power loss.
   pull stops safely and the data set is flagged truncated.
 - **FR-005 (USB serial API):** new serial commands, shared command policy
   (`Commands::execute`, serial only - web API unchanged): `home`,
-  `test`, `testspeed <mm/min>` (persisted, clamped to the existing feed
+  `home top`, `test`, `testspeed <mm/min>` (persisted, clamped to the existing feed
   range), `testarm <N>` + `testdrop <pct>` (persisted), `data [from-index]`
   (CSV chunk dump), `testdata` (non-destructive status: state, sample count,
   capacity, peak, truncation flag). Existing `stop` aborts pull and homing.
@@ -131,6 +147,11 @@ As an operator, I am protected against endstop faults and runtime power loss.
 - **TC-006:** homing timeout (configurable, default 30 s at seek speed) and
   the minimum-travel instant-trigger guard (FR-001) are pure timing and
   distance decisions (host-tested with injected clock and position).
+- **TC-007:** two-stage homing (fast seek -> back-off -> slow re-seek) is a
+  pure staged state machine, host-tested: stage transitions, bounce
+  immunity of the second touch, and datum identity between stage-2 trigger
+  and stage-1 trigger within the re-seek tolerance (TC pinned per #81); a
+  stage-2 instant re-trigger (stuck switch) faults per FR-001.
 
 ### Non-Functional
 

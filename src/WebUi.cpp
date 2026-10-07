@@ -33,7 +33,12 @@ void WebUi::handleClient() {
 }
 
 String WebUi::statusJson() {
-  String json = "{";
+  String json;
+  json.reserve(800);  // jane: payload is ~740 B with 5 selftest checks
+  // One steps() read for both fields: the motor task on core 0 can advance
+  // the position between two reads, which would make them disagree.
+  const long currentSteps = motion_.steps();
+  json += "{";
   json += "\"driverEnabled\":";
   json += motion_.isEnabled() ? "true" : "false";
   json += ",\"running\":";
@@ -45,9 +50,9 @@ String WebUi::statusJson() {
   json += ",\"feedMmPerMin\":";
   json += String(rpmToFeedMmPerMin(motion_.outputRpm()), 2);
   json += ",\"positionMm\":";
-  json += String(motion_.positionMm(), 3);
+  json += String(spindleMmFromSteps(currentSteps), 3);
   json += ",\"steps\":";
-  json += String(motion_.steps());
+  json += String(currentSteps);
   json += ",\"forceNewton\":";
   if (loadcell_.isReady()) {
     json += String(loadcell_.forceNewton(), 2);

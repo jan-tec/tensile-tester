@@ -33,6 +33,13 @@ void test_fractional_mm_rounds_to_nearest_step(void) {
   TEST_ASSERT_EQUAL(5492, spindleMmToSteps(0.5f));
 }
 
+void test_steps_to_spindle_mm(void) {
+  // Inverse of spindleMmToSteps: one spindle rev = 21968 steps = 2 mm.
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, 2.0f, spindleMmFromSteps(21968));
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, 1.0f, spindleMmFromSteps(10984));
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, 0.0f, spindleMmFromSteps(0));
+}
+
 void test_rpm_to_steps_per_second(void) {
   // 60 rpm at the spindle = one spindle revolution per second.
   TEST_ASSERT_FLOAT_WITHIN(0.5f, OUTPUT_STEPS_PER_REV,
@@ -73,6 +80,7 @@ void runGearMathTests() {
   RUN_TEST(test_half_revolution);
   RUN_TEST(test_negative_direction);
   RUN_TEST(test_fractional_mm_rounds_to_nearest_step);
+  RUN_TEST(test_steps_to_spindle_mm);
   RUN_TEST(test_rpm_to_steps_per_second);
   RUN_TEST(test_feed_conversions);
   RUN_TEST(test_clamp_feed_below_min);

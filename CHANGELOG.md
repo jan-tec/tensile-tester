@@ -71,6 +71,13 @@ and API).
 
 ### Changed
 
+- Stepper pulse generation moved from AccelStepper (software polling task on
+  core 0 + `portMUX`) to FastAccelStepper, which drives the ESP32 RMT
+  peripheral in hardware: step timing is no longer jittered by WiFi/scheduler
+  preemption, so motion is smooth and the usable step rate no longer caps at
+  the poll-loop rate. `Motion` no longer owns a FreeRTOS task or `portMUX`;
+  `IMotion`, the command set, and the gear math are unchanged. FastAccelStepper
+  is pinned to the commit after 1.4.0 that fixes the ESP32 build (2026-10-05).
 - `GET /api/status`: `forceNewton` is now the string `"n/a"` when the
   load cell is not ready, instead of a zero reading (SC-003, #24); the
   web UI shows `n/a` in the force panel for the same case

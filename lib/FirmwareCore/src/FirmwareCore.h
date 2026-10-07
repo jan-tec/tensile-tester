@@ -29,6 +29,9 @@ float outputRpmToStepsPerSecond(float rpm);
 long outputTurnsToSteps(float turns);
 long spindleMmToSteps(float mm);
 
+// Inverse of spindleMmToSteps: driver steps -> spindle mm (unrounded).
+float spindleMmFromSteps(long steps);
+
 // Spindle rpm <-> feed speed in mm/min (2 mm per spindle revolution).
 float rpmToFeedMmPerMin(float rpm);
 float feedMmPerMinToRpm(float mmPerMin);

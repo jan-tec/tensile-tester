@@ -20,6 +20,11 @@ long spindleMmToSteps(float mm) {
   return outputTurnsToSteps(mm / SPINDLE_PITCH_MM_PER_REV);
 }
 
+float spindleMmFromSteps(long steps) {
+  return (static_cast<float>(steps) / OUTPUT_STEPS_PER_REV) *
+         SPINDLE_PITCH_MM_PER_REV;
+}
+
 float rpmToFeedMmPerMin(float rpm) {
   return rpm * SPINDLE_PITCH_MM_PER_REV;
 }

@@ -13,6 +13,10 @@ and API).
 
 ### Added
 
+- M3 implementation plan + task breakdown (`specs/M3-tensile-test-cycle/`):
+  pure `FirmwareCore` contracts for the test-cycle FSM, two-stage homing, break
+  detector, sample buffer and CSV formatter, `0x05xx` endstop error block,
+  bench matrix B1-B8 (2026-10-10)
 - `src/Text.h` message tables (M2-T002, 2026-10-09, #32): `Msg` enum with 56
   ids plus parallel EN/DE columns (EN primary per FR-001, DE as the ASCII
   transcription FR-006 requires for serial), guarded by the TC-002 host test

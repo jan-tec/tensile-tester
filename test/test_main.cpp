@@ -12,6 +12,7 @@ extern void runDeviceModelTests();
 extern void runHealthEvalTests();
 extern void runErrorCodeTests();
 extern void runLocaleTests();
+extern void runTextTableTests();
 
 void setUp(void) {}
 void tearDown(void) {}
@@ -25,5 +26,6 @@ int main(void) {
   runHealthEvalTests();
   runErrorCodeTests();
   runLocaleTests();
+  runTextTableTests();
   return UNITY_END();
 }

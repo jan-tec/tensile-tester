@@ -13,6 +13,11 @@ and API).
 
 ### Added
 
+- `src/Text.h` message tables (M2-T002, 2026-10-09, #32): `Msg` enum with 56
+  ids plus parallel EN/DE columns (EN primary per FR-001, DE as the ASCII
+  transcription FR-006 requires for serial), guarded by the TC-002 host test
+  and compile-time enum/table sync asserts. Skeleton only - no call site
+  routes through it until T003
 - Feature specifications M3-M7 (2026-10-07, #75/#77/#78/#84): automated
   tensile test cycle, constant-force hold, load cell calibration wizard
   with physics-window guard, structured JSON serial API, web UI redesign

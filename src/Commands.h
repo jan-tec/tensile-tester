@@ -94,6 +94,12 @@ class Commands {
   bool applyTestConfigValue(float value, String &response,
                             float TestConfig::*field, const char *suffix);
 
+  // Shared gate for config changes: locked in fault state (applyConfig
+  // resets the homing FSM - unlatching its Fault behind the device
+  // Error gate would blur FR-009's recovery rule) and rejected while a
+  // run is active (D11). True when the change may proceed.
+  bool testConfigChangeAllowed(String &response) const;
+
   Settings &settings_;
   Motion &motion_;
   LoadCell &loadcell_;

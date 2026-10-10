@@ -126,7 +126,8 @@ void test_pairing_anchors(void) {
 void test_de_is_translated_except_invariants(void) {
   static const Msg kInvariant[] = {
       Msg::MillimetreSuffix, Msg::MillimetrePerMinuteSuffix, Msg::NewtonSuffix,
-      Msg::PercentSuffix, Msg::NotAvailable, Msg::HelpCommandsSuffix,
+      Msg::PercentSuffix, Msg::SecondsSuffix, Msg::NotAvailable,
+      Msg::HelpCommandsSuffix,
   };
   for (int i = 0; i < static_cast<int>(Msg::Count); ++i) {
     const Msg id = static_cast<Msg>(i);

@@ -184,10 +184,10 @@
   MSG(HelpCommandsSuffix, \
       "rpm, acc, feed, move, turn, jog up, jog down, cal_zero, cal_apply, " \
       "home, home top, test, testspeed, testarm, testdrop, data, " \
-      "testdata, lang", \
+      "testdata, homeseek, hometimeout, lang", \
       "rpm, acc, feed, move, turn, jog up, jog down, cal_zero, cal_apply, " \
       "home, home top, test, testspeed, testarm, testdrop, data, " \
-      "testdata, lang")  /* command names are locale-invariant */ \
+      "testdata, homeseek, hometimeout, lang")  /* command names are locale-invariant */ \
   /* Test cycle (M3 FR-005/FR-006, T012). Composed prefix + value + the \
      existing unit suffix rows - no format strings. */ \
   MSG(HomeStarted, \
@@ -239,6 +239,10 @@
   MSG(TestdataPrefix, "Test data: ", "Testdaten: ") \
   MSG(DumpStarted, "Data dump started.", "Datenausgabe gestartet.") \
   MSG(PercentSuffix, " %", " %") \
+  MSG(SecondsSuffix, " s.", " s.") \
+  MSG(HomeSeekFollows, \
+      "Homing seek follows the test speed.", \
+      "Referenzfahrt folgt der Testgeschwindigkeit.") \
   MSG(PositionDatumUnknown, \
       "Position datum unknown - run home first.", \
       "Position Nullpunkt unbekannt - zuerst Referenzfahrt.") \

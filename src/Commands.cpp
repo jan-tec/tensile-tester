@@ -51,6 +51,18 @@ ParseResult Commands::parseIndexAfterCommand(const String &command,
   return parseCommandIndex(command.c_str(), prefix, &index);
 }
 
+bool Commands::testConfigChangeAllowed(String &response) const {
+  if (diagnostics_.model().state() == DeviceState::Error) {
+    response = msg(Msg::ConfigLockedInFault);
+    return false;
+  }
+  if (testRunner_.active()) {
+    response = msg(Msg::CycleBusy);
+    return false;
+  }
+  return true;
+}
+
 bool Commands::applyTestConfigValue(float value, String &response,
                                     float TestConfig::*field,
                                     const char *suffix) {
@@ -58,16 +70,7 @@ bool Commands::applyTestConfigValue(float value, String &response,
     response = msg(Msg::ValueMustBePositive);
     return false;
   }
-  if (diagnostics_.model().state() == DeviceState::Error) {
-    // applyConfig() resets the homing FSM - unlatching its Fault behind
-    // the device Error gate would blur FR-009's recovery-by-reboot rule.
-    response = msg(Msg::ConfigLockedInFault);
-    return false;
-  }
-  if (testRunner_.active()) {
-    // applyConfig() re-parameterises the models (and resets the homing
-    // FSM) - never while a run is in flight (D11).
-    response = msg(Msg::CycleBusy);
+  if (!testConfigChangeAllowed(response)) {
     return false;
   }
   TestConfig config = testRunner_.config();
@@ -405,6 +408,61 @@ bool Commands::execute(String command, String &response) {
   if (testDropResult == ParseResult::Ok) {
     return applyTestConfigValue(value, response, &TestConfig::dropPercent,
                                 msg(Msg::PercentSuffix));
+  }
+
+  // #157: the homing reach knobs. Seek speed 0 = follow the test speed;
+  // timeout in seconds (clamp [1, 300] s via clampTestConfig) - at the
+  // spec default 30 s x 12 mm/min the seek only covers ~6 mm, which the
+  // bench showed is far short of a mid-travel start.
+  const ParseResult homeSeekResult =
+      parseValueAfterCommand(command, "homeseek", value);
+  if (homeSeekResult == ParseResult::InvalidValue) {
+    return reportInvalidValue(response);
+  }
+  if (homeSeekResult == ParseResult::Ok) {
+    if (value < 0.0f) {
+      response = msg(Msg::ValueMustBePositive);
+      return false;
+    }
+    if (!testConfigChangeAllowed(response)) {
+      return false;
+    }
+    TestConfig config = testRunner_.config();
+    config.homingSeekMmPerMin = value;  // 0 = follow the test speed
+    testRunner_.applyConfig(config);
+    settings_.saveTestConfig(testRunner_.config());
+    if (testRunner_.config().homingSeekMmPerMin == 0.0f) {
+      response = msg(Msg::HomeSeekFollows);
+    } else {
+      response =
+          String(testRunner_.config().homingSeekMmPerMin, 2) +
+          msg(Msg::MillimetrePerMinuteSuffix);
+    }
+    return true;
+  }
+
+  const ParseResult homeTimeoutResult =
+      parseValueAfterCommand(command, "hometimeout", value);
+  if (homeTimeoutResult == ParseResult::InvalidValue) {
+    return reportInvalidValue(response);
+  }
+  if (homeTimeoutResult == ParseResult::Ok) {
+    if (value <= 0.0f || value > 300.0f) {
+      response = msg(Msg::ValueMustBePositive);
+      return false;
+    }
+    if (!testConfigChangeAllowed(response)) {
+      return false;
+    }
+    TestConfig config = testRunner_.config();
+    config.homingTimeoutMs =
+        static_cast<uint32_t>(value * 1000.0f);
+    testRunner_.applyConfig(config);
+    settings_.saveTestConfig(testRunner_.config());
+    response = String(
+                   testRunner_.config().homingTimeoutMs / 1000.0f, 0) +
+               msg(Msg::SecondsSuffix);
+    return true;
   }
 
   // `data [from-index]`: CSV dump (TC-005 resume grammar). Bare `data`

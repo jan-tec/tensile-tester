@@ -6,6 +6,68 @@ on:
   pull_request:
 
 jobs:
+  # Detection half of the PR-only `main` rule (AGENTS.md "Push Guardrail", #100).
+  # GitHub Free + private repo cannot enforce it server-side (rulesets and branch
+  # protection both answer 403, re-verified 2026-10-10), so every push to main is
+  # audited here: squash-merged PRs always end their subject with "(#<n>)", a
+  # direct push does not. Runs on push to `main` only, independent of build/test
+  # (parallel on purpose: their results survive a guard fail, and guard is cheap
+  # so it usually lands first).
+  guard:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+      - name: Audit new commits on main for a PR reference
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          zero="0000000000000000000000000000000000000000"
+          if [ -z "${BEFORE:-}" ] || [ "$BEFORE" = "$zero" ]; then
+            echo "No previous main (branch creation/reset): auditing $AFTER only."
+            range=(-1 "$AFTER")
+          else
+            range=("$BEFORE..$AFTER")
+          fi
+          # A failing git log is fatal to the audit: a BEFORE that is missing or
+          # not an ancestor (force-pushed/rewritten main) must turn the guard RED,
+          # never pass. A mapfile < <(...) process substitution would swallow the
+          # failure and leave `offenders` empty -> false green.
+          if ! log=$(git log --no-merges --format='%h %s' "${range[@]}"); then
+            printf '::error::cannot audit `%s` on main (rewritten history / missing objects)\n' "${range[*]}"
+            exit 1
+          fi
+          offenders=()
+          if [ -n "$log" ]; then
+            mapfile -t offenders < <(printf '%s\n' "$log" | grep -vE '\(#[0-9]+\)$' || true)
+          fi
+          {
+            echo "## main audit (#100)"
+            echo
+            echo "Audited range: \`${range[*]}\`"
+            echo
+            if [ "${#offenders[@]}" -eq 0 ]; then
+              echo "All new commits reference a PR."
+            else
+              echo "Direct pushes to \`main\` (no \`(#<n>)\` in the subject):"
+              echo
+              echo '```'
+              printf '%s\n' "${offenders[@]}"
+              echo '```'
+              echo
+              echo "Undo: reset main to the previous commit, move the change to a branch,"
+              echo "open a PR. Rules: AGENTS.md \"Push Guardrail\"."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "${#offenders[@]}" -gt 0 ]; then
+            printf '::error::%s commit(s) reached main without a PR reference\n' "${#offenders[@]}"
+            exit 1
+          fi
+
   build:
     runs-on: ubuntu-latest
     steps:

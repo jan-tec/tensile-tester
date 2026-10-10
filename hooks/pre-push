@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# Client half of the PR-only `main` rule (AGENTS.md "Push Guardrail", #100).
+#
+# GitHub Free on a **private** repo cannot enforce this server-side: rulesets and
+# classic branch protection both answer 403 "Upgrade to GitHub Pro or make this
+# repository public" (re-verified against the API on 2026-10-10). So:
+#
+#   * this hook prevents the accidental push on workstations that installed it,
+#   * the `guard` job in .github/workflows/ci.yml detects any push that still
+#     reached main, from anywhere.
+#
+# Install once per clone:
+#
+#     git config core.hooksPath hooks
+#
+# Escape hatch for the human owner (revert on main, rebasing main after a
+# rejected release): prefix the push with ALLOW_MAIN_PUSH=1. Use it deliberately,
+# and put the issue/PR reference in the commit subject so the CI audit passes.
+
+set -euo pipefail
+
+protected_ref="refs/heads/main"
+zero_sha="0000000000000000000000000000000000000000"
+block=0
+
+# git feeds one line per ref being pushed: <local_ref> <local_sha> <remote_ref> <remote_sha>
+while read -r _local_ref _local_sha remote_ref remote_sha; do
+  # Deletion of main (local sha all-zero) is always refused without the hatch.
+  if [ "$remote_ref" = "$protected_ref" ]; then
+    if [ "${ALLOW_MAIN_PUSH:-0}" = "1" ]; then
+      echo "pre-push: ALLOW_MAIN_PUSH=1 set - allowing push to $remote_ref (remote was ${remote_sha:0:7}, sending ${_local_sha:0:7})" >&2
+      continue
+    fi
+    echo "pre-push: REFUSED - '$remote_ref' is PR-only in this repo." >&2
+    echo "  Flow: git switch -c fix/<topic> -> git push -u origin fix/<topic> -> PR -> squash merge." >&2
+    echo "  Rules: AGENTS.md 'Push Guardrail' (issue #100)." >&2
+    echo "  Owner override: ALLOW_MAIN_PUSH=1 git push ... (put (#<n>) in the commit subject" >&2
+    echo "  so the CI audit on main accepts it)." >&2
+    block=1
+    continue
+  fi
+
+  # Deleting a branch (local sha all-zero) introduces no commits: allow.
+  # Deleting main never gets here - the protected-ref branch above runs first.
+  if [ "$_local_sha" = "$zero_sha" ]; then
+    continue
+  fi
+
+  # Non-fast-forward on any other branch rewrites shared history: refuse the same
+  # way unless the hatch is set. remote_sha all-zero means the branch is new.
+  if [ "$remote_sha" != "$zero_sha" ] && [ -n "$remote_sha" ] &&
+     ! git merge-base --is-ancestor "$remote_sha" "${_local_sha:-$zero_sha}" 2>/dev/null; then
+    if [ "${ALLOW_FORCE_PUSH:-0}" = "1" ]; then
+      echo "pre-push: non-fast-forward allowed via ALLOW_FORCE_PUSH=1 on $remote_ref" >&2
+      continue
+    fi
+    echo "pre-push: REFUSED - non-fast-forward push to '$remote_ref'." >&2
+    echo "  If the branch was rebased intentionally: ALLOW_FORCE_PUSH=1 git push --force-with-lease ..." >&2
+    echo "  Prefer 'git pull --rebase' over history rewrites on shared branches." >&2
+    block=1
+  fi
+done
+
+exit "$block"

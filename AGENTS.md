@@ -189,13 +189,25 @@ mv /tmp/main.cpp.bak src/main.cpp
 
 **Why no hard gate (process-only):** `origin` is a **private** repo on a
 **free personal** account (`satwareAG-ironMike`). GitHub blocks both rulesets
-and classic branch protection on private repos without a paid plan
-(403 "Upgrade to GitHub Pro or make this repository public", verified
-2026-08-19). So `main` protection is convention + CI feedback, not a
-ruleset. A direct push to `main` is still technically possible - avoid it;
-use the PR flow. If a hard gate is ever wanted, options are: upgrade the
-account to GitHub Pro, or make the repo public (rulesets are free on public
-repos).
+and classic branch protection on private repos without a paid plan - re-verified
+2026-10-10 against the live API, both endpoints answer
+`403 "Upgrade to GitHub Pro or make this repository public"`
+(`GET /repos/.../rulesets`, `GET /repos/.../branches/main/protection`). A
+**server-side** block on pushing `main` is therefore not available.
+
+What exists instead (client rules in "Push Guardrail" below):
+
+| Layer | Enforces | Defeatable by |
+|-------|----------|---------------|
+| `hooks/pre-push` | refuses pushes targeting `refs/heads/main`, and non-fast-forward pushes to any branch (branch deletions are allowed) | `--no-verify`, a clone that never set `core.hooksPath`, or `ALLOW_MAIN_PUSH=1` |
+| CI `guard` job | fails the run when a commit on `main` lacks `(#<n>)` | nothing - but it runs **after** the commit is on `main`: detection, not prevention |
+| Human review | the actual content gate | - |
+
+A direct push to `main` is still technically possible - it is now blocked locally
+by default and turns CI red if it happens anyway. For a real hard gate: upgrade
+the account to GitHub Pro, or make the repo public (rulesets are free on public
+repos). Note this repo mirrors `jan-tec/tensile-tester` (read-only `upstream`), so
+visibility is a client-relationship decision, not a repo-local setting.
 
 ## Push Guardrail (agent sessions)
 
@@ -210,6 +222,29 @@ account), so a direct push to `main` succeeds silently. It happened once
 | Don't chain `switch` with `commit`/`push` | `git switch -c x && git commit ...` hides a failed switch, and the commit lands on the previous branch |
 | Confirm after `switch -c` | the command's exit code is not evidence; read `git branch --show-current` |
 | Audit | non-merge commits on `main` whose subject lacks `(#<n>)` are direct pushes. Verified command: `git log --no-merges --format="%h %s" origin/main \| grep -vE '\(#[0-9]+\)$'` - baseline 2026-10-10: 10 hits, 9 pre-date the 2026-08-19 PR flow, 1 is #100 |
+
+**Enforcement lives in the repo** - the layer table under "Why no hard gate"
+above lists what each layer enforces and where (`hooks/pre-push`, the `guard`
+job in `.github/workflows/ci.yml`, human review).
+
+Both were tested before shipping: 6 hook cases (main blocked, `ALLOW_MAIN_PUSH=1`
+allowed, new branch, fast-forward, non-fast-forward blocked, `ALLOW_FORCE_PUSH=1`
+allowed) and the audit run against real history - green on
+`0f3d2dc..6854e65`, red on `256d7c5..0f3d2dc` because that range contains `165c0ac`.
+
+Owner overrides (use deliberately, and put `(#<n>)` in the commit subject so the CI
+audit still passes): `ALLOW_MAIN_PUSH=1 git push ...`, `ALLOW_FORCE_PUSH=1 git push
+--force-with-lease ...`.
+
+## Installing the hook (every clone, every agent session)
+
+```bash
+git config core.hooksPath hooks      # active from the next push onward
+```
+
+`core.hooksPath` is local to the clone, so it is **not** inherited by a fresh
+`git clone` - a session that skips this step has no client-side guard, only the CI
+audit. Verify with `git config core.hooksPath` (must print `hooks`).
 
 ## No-Quirk Policy (NQP)
 

@@ -13,9 +13,11 @@
 
 #include <Text.h>
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <iterator>
 
 void test_msg_count_is_positive(void) {
   TEST_ASSERT_GREATER_THAN_INT(0, static_cast<int>(Msg::Count));
@@ -102,6 +104,29 @@ void test_pairing_anchors(void) {
   TEST_ASSERT_NOT_NULL(strstr(msgDe(Msg::OriginZeroed), "Achsposition"));
 }
 
+// #89: a DE entry copied verbatim from EN would satisfy the non-empty walk
+// above while serving English to German users. Identical EN/DE text is only
+// legitimate for the locale-invariant ids listed here (units, the "n/a"
+// token, the command-name list - strings no locale ever retranslates); a
+// prose entry copied to DE must fail this test.
+void test_de_is_translated_except_invariants(void) {
+  static const Msg kInvariant[] = {
+      Msg::MillimetreSuffix, Msg::MillimetrePerMinuteSuffix, Msg::NewtonSuffix,
+      Msg::NotAvailable, Msg::HelpCommandsSuffix,
+  };
+  for (int i = 0; i < static_cast<int>(Msg::Count); ++i) {
+    const Msg id = static_cast<Msg>(i);
+    if (strcmp(msgEn(id), msgDe(id)) != 0) {
+      continue;  // translated, fine
+    }
+    const bool allowed =
+        std::find(std::begin(kInvariant), std::end(kInvariant), id) !=
+        std::end(kInvariant);
+    TEST_ASSERT_TRUE_MESSAGE(allowed,
+                             "DE entry is a copy of EN (untranslated?)");
+  }
+}
+
 void runTextTableTests(void) {
   RUN_TEST(test_msg_count_is_positive);
   RUN_TEST(test_every_msg_has_en_entry);
@@ -111,5 +136,6 @@ void runTextTableTests(void) {
   RUN_TEST(test_msg_de_locale_serves_de);
   RUN_TEST(test_msg_for_fault_maps_every_error_code);
   RUN_TEST(test_fault_details_localize_in_both_locales);
+  RUN_TEST(test_de_is_translated_except_invariants);
   RUN_TEST(test_pairing_anchors);
 }

@@ -73,7 +73,6 @@
   MSG(ApStarted, \
       "WiFi access point started: ", \
       "WLAN Access Point gestartet: ")  /* prefix, SSID appended */ \
-  MSG(ApIpSeparator, " | IP ", " | IP ")  /* between SSID and IP */ \
   MSG(ApPassword, "Password: ", "Passwort: ")  /* prefix, password appended */ \
   MSG(WebUiUrl, \
       "Web UI: http://", \

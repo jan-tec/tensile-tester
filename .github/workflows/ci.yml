@@ -101,5 +101,7 @@ jobs:
           key: ${{ runner.os }}-pio-test-${{ hashFiles('platformio.ini') }}
       - name: Install PlatformIO Core
         run: pip install platformio==6.1.19
+      - name: Locale coverage gate (#89)
+        run: python3 scripts/check_locale_coverage.py
       - name: Unit tests (host, env:native)
         run: pio test -e native

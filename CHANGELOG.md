@@ -13,6 +13,11 @@ and API).
 
 ### Added
 
+- `BreakDetector` (`lib/FirmwareCore/src/BreakDetect.h`, M3 T001, #104): pure
+  arm/peak/drop break detector - arms strictly above the arm threshold, tracks
+  the running peak only while armed, latches `Broken` below
+  `dropFraction x peak`, ignores NaN/inf samples. No Arduino, no heap,
+  host-tested RED-first (13 cases). Not yet wired into `src/` (T011).
 - M3 implementation plan + task breakdown (`specs/M3-tensile-test-cycle/`):
   pure `FirmwareCore` contracts for the test-cycle FSM, two-stage homing, break
   detector, sample buffer and CSV formatter, `0x05xx` endstop error block,
@@ -124,6 +129,11 @@ and API).
 
 ### Fixed
 
+- `CHECK`/`STATE` boot-log lines print machine codes with the FR-007 fixed
+  width: `code=0x0301`, not `code=0x301`. `Serial.print(v, HEX)` drops the
+  leading zeros and shifted the columns fixed-width host log parsers key on.
+  New pure `errorCodeHex()` in `src/ErrorCode.h` is the single padding point
+  (2026-10-10, #97, host-tested)
 - Boot no longer logs `E (NNN) gpio: gpio_pulldown_en(123): GPIO number error
   (input-only pad has no internal PD)`. `PowerSense::begin()` requested
   `INPUT_PULLDOWN` on GPIO34; GPIO34-39 are input-only pads without internal

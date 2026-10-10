@@ -122,6 +122,17 @@ and API).
   `janelia-arduino/TMC2209`) from `lib_deps` - the driver runs plain
   STEP/DIR/EN via AccelStepper (2026-08-20, #3)
 
+### Fixed
+
+- Boot no longer logs `E (NNN) gpio: gpio_pulldown_en(123): GPIO number error
+  (input-only pad has no internal PD)`. `PowerSense::begin()` requested
+  `INPUT_PULLDOWN` on GPIO34; GPIO34-39 are input-only pads without internal
+  pull-ups/pull-downs, so the IDF call failed and applied nothing. Now plain
+  `INPUT`, and `docs/hardware-power-check.md` states the consequence: the
+  defined low level that makes `POWER = NOT_WIRED` deterministic has to come
+  from the external divider R2 (#27), it was never provided by the MCU.
+  Target-verified 2026-10-10 (boot log after re-flash)
+
 ### Known limitations
 
 - Automatic test modes ("Ziehen bis Bruch", "Kraft halten") are not

@@ -1,5 +1,6 @@
 // 5 V rail power sense (M1 FR-005, D4): 10 k/10 k divider,
-// 5 V rail -> GPIO34 (INPUT_PULLDOWN). The ADC sees half the rail;
+// 5 V rail -> GPIO34 (input-only pad, plain INPUT - GPIO34-39 have no
+// internal pull-up/pull-down). The ADC sees half the rail;
 // rail-equivalent volts = 2 x ADC volts. Runtime monitoring at 1 Hz;
 // hysteresis/debounce lives in FirmwareCore::PowerMonitor (pinned in
 // test/test_health_eval.cpp). NOT_WIRED until the divider is built

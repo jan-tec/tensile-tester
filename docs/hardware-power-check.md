@@ -7,8 +7,12 @@ how to verify it, and what the POWER check result means (T011, TC-003).
 ## Circuit
 
 Two 10 kΩ resistors in series between 5 V and GND. The firmware reads the
-midpoint on GPIO34 (input only, INPUT_PULLDOWN, ADC1_CH13) and doubles the
-ADC volts to the rail-equivalent value (`src/PowerSense.{h,cpp}`):
+midpoint on GPIO34 (input-only pad, plain `INPUT`, ADC1_CH13) and doubles the
+ADC volts to the rail-equivalent value (`src/PowerSense.{h,cpp}`). GPIO34-39
+have **no internal pull-up/pull-down**, so the defined low level of an unwired
+pin comes from the external R2, not from the MCU: requesting `INPUT_PULLDOWN`
+here only makes the IDF driver log `gpio_pulldown_en(123): GPIO number error
+(input-only pad has no internal PD)` and applies nothing.
 
     5 V ---[ 10 kΩ ]---+---[ 10 kΩ ]--- GND
                        |
@@ -28,10 +32,17 @@ ADC range).
 
 | Rail volts | Boot POWER result | Meaning |
 |------------|-------------------|---------|
-| < 1.0 | NOT_WIRED (info) | divider absent, pin pulled down to ~0 V (D3: absence is not a fault) |
+| < 1.0 | NOT_WIRED (info) | divider absent, floating pad near 0 V (D3: absence is not a fault) |
 | 1.0-4.50 | FAIL `POWER_LOW 0x0201` | rail low, device enters Error state (FR-009) |
 | 4.50-4.75 | WARN `POWER_LOW 0x0201` | rail low, device stays operable |
 | >= 4.75 | OK | normal |
+
+Caveat while the divider is absent (#27 open): GPIO34 floats, so the
+NOT_WIRED classification is best effort. The bench board measured 0.28 V
+rail-equivalent (2026-10-10), but nothing holds a floating pad below the 1.0 V
+threshold - if it drifted above it, the runtime monitor would treat the garbage
+as a present rail and enter Error after 5 samples. Only the external R2 (or at
+least a 100 k pull-down to GND) makes NOT_WIRED deterministic.
 
 Boot: single-shot read. Runtime: 1 Hz monitor (FR-005). A runtime FAIL
 needs 5 consecutive samples below 4.50 V (debounce); the 4.50-4.55 V

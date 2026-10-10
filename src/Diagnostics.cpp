@@ -130,7 +130,7 @@ CheckResult Diagnostics::checkPower(PowerSense &power) {
 
   if (powerNotWired(volts)) {
     // D3: an absent divider (T008 not built) is info (NOT_WIRED),
-    // never a power fault; the pin reads ~0 V via INPUT_PULLDOWN.
+    // never a power fault; a floating input-only pad leaks low (~0 V).
     result.status = CheckStatus::NotWired;
   } else {
     const PowerStatus status = powerStatusForVoltage(volts);

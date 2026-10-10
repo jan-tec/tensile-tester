@@ -8,6 +8,8 @@
 
 #include <UiHtml.h>
 
+#include <FirmwareCore.h>
+
 #include <algorithm>
 #include <cctype>
 #include <cstring>
@@ -17,6 +19,26 @@
 namespace {
 bool inHtml(const char *needle) {
   return std::strstr(INDEX_HTML, needle) != nullptr;
+}
+
+// Every value of an HTML attribute like `data-cmd=` in the asset, deduplicated.
+// Returns empty on a scan-pattern regression - callers must assert non-empty
+// so a failed scan can never pass vacuously (#98 AC).
+std::vector<std::string> htmlAttrValues(const char *attrEq) {
+  std::vector<std::string> out;
+  const char *p = INDEX_HTML;
+  while ((p = std::strstr(p, attrEq)) != nullptr) {
+    p += strlen(attrEq);  // step past the opening quote
+    const char *end = std::strchr(p, '"');
+    if (end == nullptr) {
+      break;  // malformed asset; another contract test will flag it
+    }
+    out.emplace_back(p, end);
+    p = end;
+  }
+  std::sort(out.begin(), out.end());
+  out.erase(std::unique(out.begin(), out.end()), out.end());
+  return out;
 }
 }  // namespace
 
@@ -229,6 +251,49 @@ void test_locale_survives_page_reload(void) {
                            "cached locale is not validated against the known set");
 }
 
+// #98: the UI wires controls by string attribute, the firmware parses by
+// string - two hand-maintained lists nothing checked against each other. A
+// renamed parser command or a newly added, unwired control used to produce a
+// silently dead button ("Unknown command." on the machine). Every
+// `data-cmd` value must resolve through the parser's exact-name table
+// (commandFromName is strcmp-exact and runs before the value prefixes, so
+// prefix shadowing cannot mask an unwired name).
+void test_all_data_cmd_values_are_known_commands(void) {
+  const std::vector<std::string> cmds = htmlAttrValues("data-cmd=\"");
+  TEST_ASSERT_TRUE_MESSAGE(!cmds.empty(),
+                           "scan found no data-cmd in the asset (#98 guard)");
+  for (const std::string &cmd : cmds) {
+    TEST_ASSERT_TRUE_MESSAGE(commandFromName(cmd.c_str()) != Command::Unknown,
+                             cmd.c_str());
+  }
+}
+
+// Same cross-check for value commands. The dispatch prefixes live in
+// src/Commands.cpp (Arduino-only); the naive parseCommandValue("<x> 1", "<x>")
+// probe the issue proposed turned out vacuous - any string matches itself.
+// So: pin the recognized prefix set here AND tie it to the pure parser side:
+// every motion prefix in the list must still be claimed by isMotionCommand()
+// (cal_apply is a value command but not motion). Drop a branch in either
+// layer and this goes red.
+void test_all_data_prefix_values_are_value_commands(void) {
+  static const char *kKnown[] = {"acc", "cal_apply", "feed", "move", "rpm",
+                                 "turn"};
+  static const char *kMotion[] = {"acc", "feed", "move", "rpm", "turn"};
+
+  const std::vector<std::string> prefixes = htmlAttrValues("data-prefix=\"");
+  TEST_ASSERT_TRUE_MESSAGE(!prefixes.empty(),
+                           "scan found no data-prefix in the asset (#98 guard)");
+  for (const std::string &prefix : prefixes) {
+    const bool known = std::find(std::begin(kKnown), std::end(kKnown), prefix) !=
+                       std::end(kKnown);
+    TEST_ASSERT_TRUE_MESSAGE(known, prefix.c_str());
+  }
+  for (const char *prefix : kMotion) {
+    const std::string probe = std::string(prefix) + " 1";
+    TEST_ASSERT_TRUE_MESSAGE(isMotionCommand(probe.c_str()), prefix);
+  }
+}
+
 void runUiHtmlTests(void) {
   RUN_TEST(test_index_html_has_content);
   RUN_TEST(test_index_html_declares_language_and_charset);
@@ -240,6 +305,8 @@ void runUiHtmlTests(void) {
   RUN_TEST(test_static_markup_is_english);
   RUN_TEST(test_i18n_dictionary_has_both_locales);
   RUN_TEST(test_i18n_dictionary_is_complete);
+  RUN_TEST(test_all_data_cmd_values_are_known_commands);
+  RUN_TEST(test_all_data_prefix_values_are_value_commands);
   RUN_TEST(test_language_selector_present);
   RUN_TEST(test_locale_survives_page_reload);
 }

@@ -38,6 +38,14 @@ class Motion : public IMotion {
   // startMoveTo behavior).
   void startMoveToSteps(long targetSteps) override;
 
+  // Continuous run at the current speed (runForward/runBackward, M3
+  // FR-001 homing seeks); enables the driver first like startMoveToSteps.
+  void startContinuous(int direction) override;
+
+  // Immediate stop without ramp (M3 plan D5); flushes the command queue
+  // so a queued moveTo cannot restart the motor afterwards.
+  void forceStop() override;
+
   bool isEnabled() override;
   bool isRunning() override;
   long steps() override;

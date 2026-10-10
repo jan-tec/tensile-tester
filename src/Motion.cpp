@@ -81,6 +81,27 @@ void Motion::startMoveToSteps(long targetSteps) {
   stepper_->moveTo(static_cast<int32_t>(targetSteps));
 }
 
+void Motion::startContinuous(int direction) {
+  if (stepper_ == nullptr) {
+    return;
+  }
+  enable();
+  if (direction >= 0) {
+    stepper_->runForward();
+  } else {
+    stepper_->runBackward();
+  }
+}
+
+void Motion::forceStop() {
+  if (stepper_ != nullptr) {
+    stepper_->forceStop();
+    // forceStop() aborts the current command only; stopMove() clears a
+    // still-queued moveTo so the motor cannot restart on its own.
+    stepper_->stopMove();
+  }
+}
+
 bool Motion::isEnabled() {
   return driverEnabled_;
 }

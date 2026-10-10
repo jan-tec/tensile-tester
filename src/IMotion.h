@@ -24,6 +24,13 @@ struct IMotion {
 
   virtual void startMoveToSteps(long targetSteps) = 0;
 
+  // Continuous move at the current speed in the given direction until
+  // stop()/forceStop()/disable() (homing seeks; M3 FR-001).
+  virtual void startContinuous(int direction) = 0;
+  // Immediate stop, no deceleration ramp (endstop hard stop; M3 plan D5:
+  // FastAccelStepper::forceStop()). stop() keeps its ramp semantics.
+  virtual void forceStop() = 0;
+
   virtual bool isEnabled() = 0;
   virtual bool isRunning() = 0;
   virtual long steps() = 0;

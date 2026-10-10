@@ -19,6 +19,7 @@ extern void runConfigTests();
 extern void runCycleModelTests();
 extern void runSampleDataTests();
 extern void runUiHtmlTests();
+extern void runLedPatternTests();
 
 void setUp(void) {}
 void tearDown(void) {}
@@ -39,5 +40,6 @@ int main(void) {
   runCycleModelTests();
   runSampleDataTests();
   runUiHtmlTests();
+  runLedPatternTests();
   return UNITY_END();
 }

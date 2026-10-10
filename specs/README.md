@@ -13,7 +13,7 @@ plan.md = HOW, tasks.md = issue backlog). **One task = one issue = one PR.**
 | **M5** | Load cell calibration | planned | M1 | `specs/M5-loadcell-calibration/` |
 | **M6** | Serial JSON API | planned | - | `specs/M6-serial-json-api/` |
 | **M7** | Web UI redesign | planned | M6 | `specs/M7-web-ui-redesign/` |
-| **M8** | LED status language (GPIO2) | planned | M1, M3, #76, #128 | `specs/M8-led-status/` |
+| **M8** | LED status language (GPIO2) | active | M1, M3, #76, #128 | `specs/M8-led-status/` |
 
 ## Issue tracking
 

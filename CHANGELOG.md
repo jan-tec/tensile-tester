@@ -133,14 +133,20 @@ and API).
   from the external divider R2 (#27), it was never provided by the MCU.
   Target-verified 2026-10-10 (boot log after re-flash)
 
-### Fixed
-
 - One dropped `/api/status` response no longer leaves `Status kann nicht geladen
   werden.` pinned in the message bar while the status pills keep updating every
   100 ms. The message is now cleared on the next successful poll, so a transient
   AP hiccup cannot masquerade as a persistent connection failure (reproduced on
   the bench: a single injected failed poll kept the red message on screen for
   minutes although polling had recovered)
+
+- Web UI no longer 404s on `/favicon.ico` (#59): `src/UiHtml.h` declares an
+  inline SVG data-URI icon, so the browser stops requesting a file the firmware
+  never served and the console error on every page load is gone. `UiHtml.h` is
+  now host-includable (Arduino-guarded `PROGMEM`) and `test/test_ui_html.cpp`
+  is the first automated gate on the served HTML asset (negative control run:
+  removing the icon link turns the test red). Target-verified 2026-10-10 with
+  the board on the bench
 
 ### Known limitations
 

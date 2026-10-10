@@ -5,7 +5,16 @@
 // Included by WebUi.cpp only; const gives it internal linkage.
 #pragma once
 
+// PROGMEM only exists inside the Arduino build; the host test (test/) includes
+// this asset to assert on what the browser actually loads, same pure-header
+// pattern as ErrorCode.h / Text.h.
+#if defined(ARDUINO)
 #include <Arduino.h>
+#endif
+
+#ifndef PROGMEM
+#define PROGMEM
+#endif
 
 const char INDEX_HTML[] PROGMEM = R"HTML(
 <!DOCTYPE html>
@@ -13,6 +22,7 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Crect%20width='32'%20height='32'%20rx='6'%20fill='%232b8bd9'/%3E%3Cpath%20d='M9%2010h14L11%2022h10'%20fill='none'%20stroke='%23fff'%20stroke-width='3'%20stroke-linecap='round'/%3E%3C/svg%3E">
   <title>Testmaschine</title>
   <style>
     :root {

@@ -5,11 +5,11 @@
 // Design (specs/M2-i18n-de-en/plan.md D2/D8):
 // - `Msg` is the single source of user-facing text; call sites select an id,
 //   they do not carry literals (grep gate SC-003, enforced in T008).
-// - Two parallel tables, EN first (FR-001 default locale). No printf format
-//   strings with embedded prose: values and units are concatenated by the
-//   caller, so a locale can reorder or rename them (see the Prefix/Suffix and
-//   Unit ids below).
-// - Tables are header-inline (C++17) so the host test links them directly:
+// - One {en, de} row per message (generated from the shared list below), EN
+//   first (FR-001 default locale). No printf format strings with embedded
+//   prose: values and units are concatenated by the caller, so a locale can
+//   reorder or rename them (see the Prefix/Suffix and Unit ids below).
+// - The table is header-inline (C++17) so the host test links it directly:
 //   src/*.cpp is not part of the native test build, same pattern as
 //   ErrorCode.h. On ESP32 const data lands in .flash.rodata, so the flash-only
 //   / RAM-safe NFR holds without a copy.
@@ -31,239 +31,166 @@
 #define PROGMEM
 #endif
 
-// Order is presentation-neutral; append new ids at the end of their block and
-// keep both tables in sync (the static_asserts below are the compile-time gate,
-// test/test_text_tables.cpp is the runtime gate).
+// Single source of truth for user-facing text (#88): ONE X-macro list drives
+// BOTH the `Msg` enum and the message table, one MSG(id, en, de) row per
+// message. The id and its two strings live in the same row and in the same
+// expansion, so the pairing is enforced by construction: inserting, moving or
+// forgetting rows can never attach a message to a foreign id. (The old shape
+// kept the enum and two position-aligned EN/DE arrays in sync by comment
+// anchors alone - a reorder kept every count green while shifting text by
+// one id. That drift class is what #88 closes.)
+// C++20 designated initializers cannot express this on GCC: the standard
+// excludes them for arrays and GCC - host g++ 16 and xtensa gcc 14, both
+// verified live on this project - parses them as lambdas; clang alone ships
+// the extension, so the X-macro is the portable enforcement.
+// Comments inside the list must be block comments - a line comment would
+// swallow the macro continuation backslash.
+#define MSG_X_LIST(MSG) \
+  /* Boot and hardware bring-up */ \
+  MSG(BootBanner, \
+      "ESP32 test machine controller started.", \
+      "ESP32 Pruefmaschinen-Steuerung gestartet.") \
+  MSG(MotorsSyncNote, \
+      "Two motors run synchronously on the same STEP/DIR signals (EN1/EN2 " "switched together).", \
+      "Zwei Motoren laufen synchron ueber dieselben STEP/DIR-Signale (EN1/EN2 " "gemeinsam geschaltet).") \
+  MSG(StepperInitFailed, \
+      "Stepper driver could not be created.", \
+      "Stepper-Treiber konnte nicht angelegt werden.") \
+  MSG(Hx711ReadyCalLoaded, \
+      "HX711 ready. Calibration factor loaded: ", \
+      "HX711 bereit. Kalibrierfaktor geladen: ")  /* prefix, factor appended */ \
+  MSG(Hx711ReadyNoCal, \
+      "HX711 ready. No valid calibration stored yet.", \
+      "HX711 bereit. Noch keine gueltige Kalibrierung " "gespeichert.") \
+  MSG(Hx711NotReadyDisabled, \
+      "HX711 not ready. Force measurement stays disabled.", \
+      "HX711 nicht bereit. Kraftmessung bleibt deaktiviert.") \
+  MSG(TaraSet, "Tare set.", "Tara gesetzt.") \
+  MSG(ApStarted, \
+      "WiFi access point started: ", \
+      "WLAN Access Point gestartet: ")  /* prefix, SSID appended */ \
+  MSG(ApIpSeparator, " | IP ", " | IP ")  /* between SSID and IP */ \
+  MSG(ApPassword, "Password: ", "Passwort: ")  /* prefix, password appended */ \
+  MSG(WebUiUrl, \
+      "Web UI: http://", \
+      "Weboberflaeche: http://")  /* prefix, "http://" + IP appended */ \
+  MSG(WebCommand, \
+      "Web command: ", \
+      "Web-Kommando: ")  /* prefix, the received command appended */ \
+  MSG(CmdParamMissing, "Parameter 'cmd' missing.", "Parameter 'cmd' fehlt.") \
+  /* Driver and motion replies */ \
+  MSG(DriversEnabled, "Both drivers enabled.", "Beide Treiber aktiviert.") \
+  MSG(DriversDisabled, "Both drivers disabled.", "Beide Treiber deaktiviert.") \
+  MSG(RpmSet, "Speed set to ", "Drehzahl gesetzt auf ")  /* prefix, value + unit appended */ \
+  MSG(AccelSet, \
+      "Acceleration set to ", \
+      "Beschleunigung gesetzt auf ")  /* prefix, value + unit appended */ \
+  MSG(FeedSet, "Feed set to ", "Vorschub gesetzt auf ")  /* prefix, value + unit appended */ \
+  MSG(RpmMustBePositive, "RPM must be greater than 0.", "RPM muss groesser als 0 sein.") \
+  MSG(AccelMustBePositive, "ACC must be greater than 0.", "ACC muss groesser als 0 sein.") \
+  MSG(FeedMustBePositive, "Feed must be greater than 0.", "Vorschub muss groesser als 0 sein.") \
+  MSG(RelativeMoveStarted, \
+      "Relative move started: ", \
+      "Relativbewegung gestartet: ")  /* prefix, value + unit appended */ \
+  MSG(RevolutionsSuffix, " revolutions.", " Umdrehungen.") \
+  MSG(RpmSuffix, " rpm.", " U/min.") \
+  MSG(AccelSuffix, " rpm/s.", " U/min/s.") \
+  MSG(MillimetreSuffix, " mm.", " mm.") \
+  MSG(MillimetrePerMinuteSuffix, " mm/min.", " mm/min.") \
+  MSG(NewtonSuffix, " N.", " N.") \
+  MSG(JogUpStarted, "Jog up started.", "Jog nach oben gestartet.") \
+  MSG(JogDownStarted, "Jog down started.", "Jog nach unten gestartet.") \
+  MSG(StopRequested, "Stop requested.", "Stopp angefordert.") \
+  /* Load cell and position replies */ \
+  MSG(OriginZeroed, "Axis position set to 0.", "Achsposition auf 0 gesetzt.") \
+  MSG(LoadCellTared, "Load cell tared.", "Waegezelle tariert.") \
+  MSG(PositionPrinted, \
+      "Position printed to the serial monitor.", \
+      "Position im Serial Monitor ausgegeben.") \
+  MSG(PositionSteps, \
+      "Position [steps]: ", \
+      "Position [Schritte]: ")  /* prefix, step count appended */ \
+  MSG(ForceCurrent, "Current force: ", "Kraft aktuell: ")  /* prefix, newtons appended */ \
+  MSG(StatusForceLabel, " | Force [N]: ", " | Kraft [N]: ") \
+  MSG(StatusTravelLabel, " | Travel [mm]: ", " | Weg [mm]: ") \
+  MSG(ForceUnavailable, "Force: n/a (HX711 not ready).", "Kraft: n/a (HX711 nicht bereit).") \
+  MSG(Hx711NotReady, "HX711 not ready.", "HX711 nicht bereit.") \
+  MSG(NotAvailable, "n/a", "n/a")  /* the "n/a" token */ \
+  /* Calibration (two-step, M5 keeps this flow) */ \
+  MSG(CalZeroCaptured, \
+      "Zero point captured. Now attach a known weight, enter its gram value and " "run step 2.", \
+      "Nullpunkt erfasst. Jetzt bekanntes Gewicht anhaengen, Grammwert eingeben " "und Schritt 2 ausfuehren.") \
+  MSG(CalStep1First, \
+      "Run step 1 first with the load cell unloaded.", \
+      "Bitte zuerst Schritt 1 mit unbelasteter Waegezelle ausfuehren.") \
+  MSG(CalWeightMustBePositive, \
+      "Calibration weight must be greater than 0 g.", \
+      "Kalibriergewicht muss groesser als 0 g sein.") \
+  MSG(CalSaved, \
+      "Calibration saved. New factor: ", \
+      "Kalibrierung gespeichert. Neuer Faktor: ")  /* prefix, factor appended */ \
+  MSG(CalFailedZeroFactor, \
+      "Calibration failed: factor is 0.", \
+      "Kalibrierung fehlgeschlagen: Faktor ist 0.") \
+  MSG(CalFailedNegativeFactor, \
+      "Calibration failed: factor is negative (offset drift?).", \
+      "Kalibrierung fehlgeschlagen: Faktor negativ (Offset drift?).") \
+  MSG(CalValueUnreadable, \
+      "Calibration value could not be read.", \
+      "Kalibrierwert konnte nicht gelesen werden.") \
+  /* Fault presentation (M1 FR-009, US2). The hex code is formatted by the caller between the two halves, so no locale ever carries a format string */ \
+  MSG(FaultStatePrefix, "Fault state (code 0x", "Fehlerzustand (Code 0x") \
+  MSG(FaultStateSuffix, \
+      "): motion commands locked, reboot required.", \
+      "): Motorkommandos gesperrt, Reboot noetig.") \
+  MSG(FaultPowerLow, "Supply voltage too low", "Versorgungsspannung zu niedrig") \
+  /* CLI generic */ \
+  MSG(EmptyCommand, "Empty command.", "Leeres Kommando.") \
+  MSG(UnknownCommand, "Unknown command.", "Unbekanntes Kommando.") \
+  MSG(InvalidValue, "Invalid value.", "Ungueltiger Wert.") \
+  MSG(HelpCommandsPrefix, \
+      "Available commands: en, off, zero, tare, force, pos, stop, ", \
+      "Verfuegbare Kommandos: en, off, zero, tare, force, pos, stop, ") \
+  MSG(HelpCommandsSuffix, \
+      "rpm, acc, feed, move, turn, jog up, jog down, cal_zero, cal_apply", \
+      "rpm, acc, feed, move, turn, jog up, jog down, cal_zero, cal_apply")  /* command names are locale-invariant */
+
+
+#define MSG_ENUM(id, en, de) id,
 enum class Msg : uint8_t {
-  // Boot and hardware bring-up
-  BootBanner = 0,
-  MotorsSyncNote,
-  StepperInitFailed,
-  Hx711ReadyCalLoaded,  // prefix, factor appended
-  Hx711ReadyNoCal,
-  Hx711NotReadyDisabled,
-  TaraSet,
-  ApStarted,        // prefix, SSID appended
-  ApIpSeparator,    // between SSID and IP
-  ApPassword,       // prefix, password appended
-  WebUiUrl,         // prefix, "http://" + IP appended
-  WebCommand,       // prefix, the received command appended
-  CmdParamMissing,
-
-  // Driver and motion replies
-  DriversEnabled,
-  DriversDisabled,
-  RpmSet,           // prefix, value + unit appended
-  AccelSet,         // prefix, value + unit appended
-  FeedSet,          // prefix, value + unit appended
-  RpmMustBePositive,
-  AccelMustBePositive,
-  FeedMustBePositive,
-  RelativeMoveStarted,  // prefix, value + unit appended
-  RevolutionsSuffix,
-  RpmSuffix,
-  AccelSuffix,
-  MillimetreSuffix,
-  MillimetrePerMinuteSuffix,
-  NewtonSuffix,
-  JogUpStarted,
-  JogDownStarted,
-  StopRequested,
-
-  // Load cell and position replies
-  OriginZeroed,
-  LoadCellTared,
-  PositionPrinted,
-  PositionSteps,  // prefix, step count appended
-  ForceCurrent,   // prefix, newtons appended
-  StatusForceLabel,
-  StatusTravelLabel,
-  ForceUnavailable,
-  Hx711NotReady,
-  NotAvailable,  // the "n/a" token
-
-  // Calibration (two-step, M5 keeps this flow)
-  CalZeroCaptured,
-  CalStep1First,
-  CalWeightMustBePositive,
-  CalSaved,  // prefix, factor appended
-  CalFailedZeroFactor,
-  CalFailedNegativeFactor,
-  CalValueUnreadable,
-
-  // Fault presentation (M1 FR-009, US2). The hex code is formatted by the
-  // caller between the two halves, so no locale ever carries a format string.
-  FaultStatePrefix,
-  FaultStateSuffix,
-  FaultPowerLow,
-
-  // CLI generic
-  EmptyCommand,
-  UnknownCommand,
-  InvalidValue,
-  HelpCommandsPrefix,
-  HelpCommandsSuffix,  // command names are locale-invariant
-
+  MSG_X_LIST(MSG_ENUM)
+  // Number of message ids, always last.
   Count
 };
+#undef MSG_ENUM
 
-// EN is the default locale (FR-001/FR-002).
-inline const char *const kMsgEn[] PROGMEM = {
-    /* BootBanner */ "ESP32 test machine controller started.",
-    /* MotorsSyncNote */
-    "Two motors run synchronously on the same STEP/DIR signals (EN1/EN2 "
-    "switched together).",
-    /* StepperInitFailed */ "Stepper driver could not be created.",
-    /* Hx711ReadyCalLoaded */ "HX711 ready. Calibration factor loaded: ",
-    /* Hx711ReadyNoCal */ "HX711 ready. No valid calibration stored yet.",
-    /* Hx711NotReadyDisabled */
-    "HX711 not ready. Force measurement stays disabled.",
-    /* TaraSet */ "Tare set.",
-    /* ApStarted */ "WiFi access point started: ",
-    /* ApIpSeparator */ " | IP ",
-    /* ApPassword */ "Password: ",
-    /* WebUiUrl */ "Web UI: http://",
-    /* WebCommand */ "Web command: ",
-    /* CmdParamMissing */ "Parameter 'cmd' missing.",
-
-    /* DriversEnabled */ "Both drivers enabled.",
-    /* DriversDisabled */ "Both drivers disabled.",
-    /* RpmSet */ "Speed set to ",
-    /* AccelSet */ "Acceleration set to ",
-    /* FeedSet */ "Feed set to ",
-    /* RpmMustBePositive */ "RPM must be greater than 0.",
-    /* AccelMustBePositive */ "ACC must be greater than 0.",
-    /* FeedMustBePositive */ "Feed must be greater than 0.",
-    /* RelativeMoveStarted */ "Relative move started: ",
-    /* RevolutionsSuffix */ " revolutions.",
-    /* RpmSuffix */ " rpm.",
-    /* AccelSuffix */ " rpm/s.",
-    /* MillimetreSuffix */ " mm.",
-    /* MillimetrePerMinuteSuffix */ " mm/min.",
-    /* NewtonSuffix */ " N.",
-    /* JogUpStarted */ "Jog up started.",
-    /* JogDownStarted */ "Jog down started.",
-    /* StopRequested */ "Stop requested.",
-
-    /* OriginZeroed */ "Axis position set to 0.",
-    /* LoadCellTared */ "Load cell tared.",
-    /* PositionPrinted */ "Position printed to the serial monitor.",
-    /* PositionSteps */ "Position [steps]: ",
-    /* ForceCurrent */ "Current force: ",
-    /* StatusForceLabel */ " | Force [N]: ",
-    /* StatusTravelLabel */ " | Travel [mm]: ",
-    /* ForceUnavailable */ "Force: n/a (HX711 not ready).",
-    /* Hx711NotReady */ "HX711 not ready.",
-    /* NotAvailable */ "n/a",
-
-    /* CalZeroCaptured */
-    "Zero point captured. Now attach a known weight, enter its gram value and "
-    "run step 2.",
-    /* CalStep1First */
-    "Run step 1 first with the load cell unloaded.",
-    /* CalWeightMustBePositive */
-    "Calibration weight must be greater than 0 g.",
-    /* CalSaved */ "Calibration saved. New factor: ",
-    /* CalFailedZeroFactor */ "Calibration failed: factor is 0.",
-    /* CalFailedNegativeFactor */
-    "Calibration failed: factor is negative (offset drift?).",
-    /* CalValueUnreadable */ "Calibration value could not be read.",
-
-    /* FaultStatePrefix */ "Fault state (code 0x",
-    /* FaultStateSuffix */ "): motion commands locked, reboot required.",
-    /* FaultPowerLow */ "Supply voltage too low",
-
-    /* EmptyCommand */ "Empty command.",
-    /* UnknownCommand */ "Unknown command.",
-    /* InvalidValue */ "Invalid value.",
-    /* HelpCommandsPrefix */
-    "Available commands: en, off, zero, tare, force, pos, stop, ",
-    /* HelpCommandsSuffix */
-    "rpm, acc, feed, move, turn, jog up, jog down, cal_zero, cal_apply",
+// One row per message, EN first (FR-001 default locale) - same list, same
+// order as the enum, so index N IS Msg id N by construction.
+struct MsgPair {
+  const char *en;
+  const char *de;
 };
 
-// DE is the ASCII transcription (FR-006) of the strings currently in use.
-inline const char *const kMsgDe[] PROGMEM = {
-    /* BootBanner */ "ESP32 Pruefmaschinen-Steuerung gestartet.",
-    /* MotorsSyncNote */
-    "Zwei Motoren laufen synchron ueber dieselben STEP/DIR-Signale (EN1/EN2 "
-    "gemeinsam geschaltet).",
-    /* StepperInitFailed */ "Stepper-Treiber konnte nicht angelegt werden.",
-    /* Hx711ReadyCalLoaded */ "HX711 bereit. Kalibrierfaktor geladen: ",
-    /* Hx711ReadyNoCal */ "HX711 bereit. Noch keine gueltige Kalibrierung "
-                          "gespeichert.",
-    /* Hx711NotReadyDisabled */
-    "HX711 nicht bereit. Kraftmessung bleibt deaktiviert.",
-    /* TaraSet */ "Tara gesetzt.",
-    /* ApStarted */ "WLAN Access Point gestartet: ",
-    /* ApIpSeparator */ " | IP ",
-    /* ApPassword */ "Passwort: ",
-    /* WebUiUrl */ "Weboberflaeche: http://",
-    /* WebCommand */ "Web-Kommando: ",
-    /* CmdParamMissing */ "Parameter 'cmd' fehlt.",
+#define MSG_ROW(id, en, de) {en, de},
+inline const MsgPair kMsgRows[] PROGMEM = {MSG_X_LIST(MSG_ROW)};
+#undef MSG_ROW
+#undef MSG_X_LIST
 
-    /* DriversEnabled */ "Beide Treiber aktiviert.",
-    /* DriversDisabled */ "Beide Treiber deaktiviert.",
-    /* RpmSet */ "Drehzahl gesetzt auf ",
-    /* AccelSet */ "Beschleunigung gesetzt auf ",
-    /* FeedSet */ "Vorschub gesetzt auf ",
-    /* RpmMustBePositive */ "RPM muss groesser als 0 sein.",
-    /* AccelMustBePositive */ "ACC muss groesser als 0 sein.",
-    /* FeedMustBePositive */ "Vorschub muss groesser als 0 sein.",
-    /* RelativeMoveStarted */ "Relativbewegung gestartet: ",
-    /* RevolutionsSuffix */ " Umdrehungen.",
-    /* RpmSuffix */ " U/min.",
-    /* AccelSuffix */ " U/min/s.",
-    /* MillimetreSuffix */ " mm.",
-    /* MillimetrePerMinuteSuffix */ " mm/min.",
-    /* NewtonSuffix */ " N.",
-    /* JogUpStarted */ "Jog nach oben gestartet.",
-    /* JogDownStarted */ "Jog nach unten gestartet.",
-    /* StopRequested */ "Stopp angefordert.",
-
-    /* OriginZeroed */ "Achsposition auf 0 gesetzt.",
-    /* LoadCellTared */ "Waegezelle tariert.",
-    /* PositionPrinted */ "Position im Serial Monitor ausgegeben.",
-    /* PositionSteps */ "Position [Schritte]: ",
-    /* ForceCurrent */ "Kraft aktuell: ",
-    /* StatusForceLabel */ " | Kraft [N]: ",
-    /* StatusTravelLabel */ " | Weg [mm]: ",
-    /* ForceUnavailable */ "Kraft: n/a (HX711 nicht bereit).",
-    /* Hx711NotReady */ "HX711 nicht bereit.",
-    /* NotAvailable */ "n/a",
-
-    /* CalZeroCaptured */
-    "Nullpunkt erfasst. Jetzt bekanntes Gewicht anhaengen, Grammwert eingeben "
-    "und Schritt 2 ausfuehren.",
-    /* CalStep1First */
-    "Bitte zuerst Schritt 1 mit unbelasteter Waegezelle ausfuehren.",
-    /* CalWeightMustBePositive */
-    "Kalibriergewicht muss groesser als 0 g sein.",
-    /* CalSaved */ "Kalibrierung gespeichert. Neuer Faktor: ",
-    /* CalFailedZeroFactor */ "Kalibrierung fehlgeschlagen: Faktor ist 0.",
-    /* CalFailedNegativeFactor */
-    "Kalibrierung fehlgeschlagen: Faktor negativ (Offset drift?).",
-    /* CalValueUnreadable */ "Kalibrierwert konnte nicht gelesen werden.",
-
-    /* FaultStatePrefix */ "Fehlerzustand (Code 0x",
-    /* FaultStateSuffix */ "): Motorkommandos gesperrt, Reboot noetig.",
-    /* FaultPowerLow */ "Versorgungsspannung zu niedrig",
-
-    /* EmptyCommand */ "Leeres Kommando.",
-    /* UnknownCommand */ "Unbekanntes Kommando.",
-    /* InvalidValue */ "Ungueltiger Wert.",
-    /* HelpCommandsPrefix */
-    "Verfuegbare Kommandos: en, off, zero, tare, force, pos, stop, ",
-    /* HelpCommandsSuffix */
-    "rpm, acc, feed, move, turn, jog up, jog down, cal_zero, cal_apply",
-};
-
-// Compile-time completeness gate: both tables must stay parallel with Msg.
-static_assert(sizeof(kMsgEn) / sizeof(kMsgEn[0]) ==
+// Completeness gate: structurally true with the shared list; kept as cheap
+// protection against a future change to the generators above.
+static_assert(sizeof(kMsgRows) / sizeof(kMsgRows[0]) ==
                   static_cast<size_t>(Msg::Count),
-              "kMsgEn is out of sync with Msg (TC-002)");
-static_assert(sizeof(kMsgDe) / sizeof(kMsgDe[0]) ==
-                  static_cast<size_t>(Msg::Count),
-              "kMsgDe is out of sync with Msg (TC-002)");
-static_assert(static_cast<size_t>(Msg::Count) <= 255,
-              "Msg::Count exceeds the uint8_t id range");
+              "kMsgRows is out of sync with Msg (TC-002)");
+
+// Accessors (plain indexing works everywhere: PROGMEM is a no-op on the host
+// and on ESP32, unified address space). Header-inline like ErrorCode.h - the
+// host test links them directly, src/*.cpp is not in the native build. The
+// const data lands in .flash.rodata on ESP32: flash-only, RAM-safe, no
+// relocation, no extra RAM (NFR).
+inline const char *msgEn(Msg id) { return kMsgRows[static_cast<int>(id)].en; }
+inline const char *msgDe(Msg id) { return kMsgRows[static_cast<int>(id)].de; }
+
+// DE rows are the ASCII transcription (FR-006: ae/oe/ue/ss) of the German
+// strings in use. Web DE with native umlauts (FR-005) is owned by the JS
+// dictionary in UiHtml.h (D5, T005), not by this table - keeping the DE
+// column ASCII is what lets both surfaces share it.

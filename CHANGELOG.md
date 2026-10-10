@@ -133,6 +133,15 @@ and API).
   from the external divider R2 (#27), it was never provided by the MCU.
   Target-verified 2026-10-10 (boot log after re-flash)
 
+### Fixed
+
+- One dropped `/api/status` response no longer leaves `Status kann nicht geladen
+  werden.` pinned in the message bar while the status pills keep updating every
+  100 ms. The message is now cleared on the next successful poll, so a transient
+  AP hiccup cannot masquerade as a persistent connection failure (reproduced on
+  the bench: a single injected failed poll kept the red message on screen for
+  minutes although polling had recovered)
+
 ### Known limitations
 
 - Automatic test modes ("Ziehen bis Bruch", "Kraft halten") are not

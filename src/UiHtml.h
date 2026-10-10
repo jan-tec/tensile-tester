@@ -319,6 +319,12 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
     const chart = document.getElementById("forceChart");
     const ctx = chart.getContext("2d");
     const forceHistory = [];
+    // The last status poll failed. The pills keep showing the last received
+    // values, so the message line is the only hint the operator gets - and it
+    // has to disappear again once polling works: a single dropped request must
+    // not leave "Status kann nicht geladen werden." on screen next to values
+    // that keep updating.
+    let statusUnavailable = false;
 
     function resizeCanvas() {
       const ratio = window.devicePixelRatio || 1;
@@ -487,6 +493,10 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
           statusFields.feedInput.value = Number(data.feedMmPerMin).toFixed(2);
         }
         renderSelftest(data);
+        if (statusUnavailable) {
+          statusUnavailable = false;
+          messageEl.textContent = "";
+        }
 
         if (typeof data.forceNewton === "number") {
           forceHistory.push(data.forceNewton);
@@ -496,6 +506,7 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
         }
         drawPlot();
       } catch (error) {
+        statusUnavailable = true;
         setMessage("Status kann nicht geladen werden.", true);
       }
     }

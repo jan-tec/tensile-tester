@@ -105,3 +105,13 @@ jobs:
         run: python3 scripts/check_locale_coverage.py
       - name: Unit tests (host, env:native)
         run: pio test -e native
+      - name: Small-stack smoke (#137)
+        # No test may keep a large object (64 KB SampleBuffer-class) on a
+        # test function's frame: a constrained stack (bench hosts, sandboxes)
+        # overflows with SIGSEGV/__stack_chk_fail far from the cause. Run the
+        # already-built binary under a 1 MB stack - Python/PIO stays outside
+        # the limit, only the test binary runs inside it.
+        run: |
+          set -euo pipefail
+          (ulimit -s 1024; exec .pio/build/native/program)
+          echo "native binary passes under a 1 MB stack"

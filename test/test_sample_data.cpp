@@ -20,6 +20,18 @@ TestSample sample(size_t i) {
   return s;
 }
 
+// 64 KB store shared by the big tests (#137): a SampleBuffer on a test
+// FUNCTION'S frame overflows any constrained stack (crashed on a Linux
+// bench host: SIGSEGV in the stack probe / canary fired in drain, the
+// last frame before the guard). Single-threaded Unity runner: one
+// static buffer, cleared at every test start (defensive against a
+// previous test aborting mid-fill).
+SampleBuffer &sharedBuffer() {
+  static SampleBuffer b;
+  b.clear();
+  return b;
+}
+
 // Drain a full dump through small chunk buffers (exercises the resume loop
 // exactly like the serial data path does). Caller stop rule (contract):
 // finish when a chunk writes 0 bytes OR no longer advances the index but
@@ -45,7 +57,7 @@ void test_sample_is_8_bytes(void) {
 }
 
 void test_buffer_push_count_at_clear(void) {
-  SampleBuffer b;
+  SampleBuffer &b = sharedBuffer();
   TEST_ASSERT_EQUAL_UINT32(0, static_cast<uint32_t>(b.count()));
   TEST_ASSERT_FALSE(b.truncated());
   TEST_ASSERT_TRUE(b.push(sample(0)));
@@ -58,7 +70,7 @@ void test_buffer_push_count_at_clear(void) {
 }
 
 void test_buffer_capacity_and_truncated(void) {
-  SampleBuffer b;
+  SampleBuffer &b = sharedBuffer();
   for (size_t i = 0; i < SampleBuffer::CAPACITY; i++) {
     TEST_ASSERT_TRUE_MESSAGE(b.push(sample(i)), "push below capacity failed");
   }
@@ -70,7 +82,7 @@ void test_buffer_capacity_and_truncated(void) {
 }
 
 void test_csv_header_footer_and_line_count(void) {
-  SampleBuffer b;
+  SampleBuffer &b = sharedBuffer();
   const size_t n = 50;
   for (size_t i = 0; i < n; i++) {
     b.push(sample(i));
@@ -100,7 +112,7 @@ void test_csv_header_footer_and_line_count(void) {
 void test_csv_exact_once_resume(void) {
   // TC-005: chunks through many tiny buffers must equal one big dump, and
   // resuming mid-dump must neither repeat nor skip a line.
-  SampleBuffer b;
+  SampleBuffer &b = sharedBuffer();
   const size_t n = 80;
   for (size_t i = 0; i < n; i++) {
     b.push(sample(i));
@@ -108,13 +120,14 @@ void test_csv_exact_once_resume(void) {
   const std::string whole = drain(b);
 
   // resume from the middle: re-drain from a resume point and splice
-  char big[8192];
+  // (static per #137: two 8 KB chunk arrays are half a small stack)
+  static char big[8192];
+  static char rest[8192];
   size_t next = 0;
   size_t w1 = formatCsvChunk(b, 0, big, 150, &next);  // deliberately tiny
   TEST_ASSERT_TRUE(w1 > 0);
   TEST_ASSERT_TRUE(next < n);
   const std::string head(big, w1);
-  char rest[8192];
   size_t next2 = next;
   size_t w2 = formatCsvChunk(b, next2, rest, sizeof(rest), &next2);
   const std::string tail(rest, w2);
@@ -126,7 +139,7 @@ void test_csv_exact_once_resume(void) {
 }
 
 void test_csv_split_line_emits_nothing(void) {
-  SampleBuffer b;
+  SampleBuffer &b = sharedBuffer();
   b.push(sample(0));
   b.push(sample(1));
   char buf[16];  // smaller than header + one line
@@ -146,7 +159,7 @@ void test_csv_split_line_emits_nothing(void) {
 
 void test_csv_tail_chunk_and_empty(void) {
   // empty buffer still produces a valid, complete document
-  SampleBuffer empty;
+  SampleBuffer &empty = sharedBuffer();
   char buf[256];
   size_t next = 0;
   const size_t w = formatCsvChunk(empty, 0, buf, sizeof(buf), &next);
@@ -157,7 +170,7 @@ void test_csv_tail_chunk_and_empty(void) {
   TEST_ASSERT_EQUAL_UINT32(0, static_cast<uint32_t>(next));
 
   // full dump in one chunk ends with the END marker (tail chunk)
-  SampleBuffer b;
+  SampleBuffer &b = sharedBuffer();
   for (size_t i = 0; i < 10; i++) {
     b.push(sample(i));
   }
@@ -169,7 +182,7 @@ void test_csv_tail_chunk_and_empty(void) {
 }
 
 void test_csv_truncated_flag_in_footer(void) {
-  SampleBuffer b;
+  SampleBuffer &b = sharedBuffer();
   for (size_t i = 0; i < SampleBuffer::CAPACITY; i++) {
     b.push(sample(i));
   }
@@ -187,7 +200,7 @@ void test_csv_truncated_flag_in_footer(void) {
 }
 
 void test_status_formatter(void) {
-  SampleBuffer b;
+  SampleBuffer &b = sharedBuffer();
   for (size_t i = 0; i < 5; i++) {
     b.push(sample(i));
   }
@@ -205,7 +218,7 @@ void test_csv_footer_deferred_to_next_chunk(void) {
   // The chunk where the last line would fit but line+END-marker would not:
   // the line is deferred and the function NEVER writes beyond bufSize (the
   // exact-once resume breaks if a chunk can overrun its buffer).
-  SampleBuffer b;
+  SampleBuffer &b = sharedBuffer();
   b.push(sample(0));
   b.push(sample(1));
   // header 32 + "0,0.00,0.00\n" 12 + "1,0.25,2.00\n" 12 + END 28 = 84

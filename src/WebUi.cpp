@@ -70,6 +70,11 @@ String WebUi::statusJson() {
   json += " | IP ";
   json += WiFi.softAPIP().toString();
   json += "\"";
+  // M2-T005 (FR-005): the JS dictionary follows the server locale, so the
+  // serial `lang` command and the Web selector stay in sync (plan D3).
+  json += ",\"locale\":\"";
+  json += localeName(textLocale());
+  json += "\"";
 
   // FR-008: device state + the boot selftest object (overall + checks[]).
   const DeviceModel &model = diagnostics_.model();

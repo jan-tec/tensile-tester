@@ -18,12 +18,12 @@
 
 const char INDEX_HTML[] PROGMEM = R"HTML(
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Crect%20width='32'%20height='32'%20rx='6'%20fill='%232b8bd9'/%3E%3Cpath%20d='M9%2010h14L11%2022h10'%20fill='none'%20stroke='%23fff'%20stroke-width='3'%20stroke-linecap='round'/%3E%3C/svg%3E">
-  <title>Testmaschine</title>
+  <title data-i18n="title">Test machine</title>
   <style>
     :root {
       --bg: #f2efe8;
@@ -193,6 +193,9 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
     button.secondary { background: #74695f; }
     button.success { background: var(--success); }
     button.danger { background: var(--danger); }
+    .langs { display: inline-flex; gap: 6px; margin-bottom: 12px; }
+    .langs button { padding: 6px 12px; font-size: 0.85rem; background: #74695f; opacity: 0.6; }
+    .langs button[aria-pressed="true"] { background: var(--accent); opacity: 1; }
     canvas {
       width: 100%;
       height: 260px;
@@ -217,102 +220,106 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
 </head>
 <body>
   <div class="wrap">
-    <h1>JanTec Zugversuch Steuerung</h1>
+    <h1 data-i18n="h1">JanTec Tensile Test Control</h1>
+    <div class="langs" role="group" aria-label="Language">
+      <button type="button" data-lang="en" aria-pressed="true">EN</button>
+      <button type="button" data-lang="de" aria-pressed="false">DE</button>
+    </div>
 
     <div class="grid">
       <section class="card plot-card">
-        <h2>Kraftverlauf</h2>
+        <h2 data-i18n="headPlot">Force curve</h2>
         <canvas id="forceChart"></canvas>
-        <p class="note">Live-Plot der gemessenen Kraft mit 10 Samples pro Sekunde. </p>
+        <p class="note" data-i18n="plotNote">Live plot of the measured force at 10 samples per second.</p>
       </section>
 
       <section class="card">
-        <h2>Steuerung</h2>
+        <h2 data-i18n="headControls">Controls</h2>
         <div class="jog">
-          <button class="arrow success jog-btn" data-jog="up" type="button" aria-label="Aufwärts joggen (Taste halten)">&#9650;</button>
+          <button class="arrow success jog-btn" data-jog="up" type="button" data-i18n-al="jogUpAl" aria-label="Jog up (hold button)">&#9650;</button>
           <div class="jog-mid">
             <div></div>
-            <button class="danger" data-cmd="stop" type="button">Stop</button>
+            <button class="danger" data-cmd="stop" type="button" data-i18n="btnStop">Stop</button>
             <div></div>
           </div>
-          <button class="arrow secondary jog-btn" data-jog="down" type="button" aria-label="Abwärts joggen (Taste halten)">&#9660;</button>
+          <button class="arrow secondary jog-btn" data-jog="down" type="button" data-i18n-al="jogDownAl" aria-label="Jog down (hold button)">&#9660;</button>
         </div>
         <form data-prefix="feed" class="speed-form">
           <div class="speed-inline">
-            <input id="feedInput" name="value" type="number" step="0.1" min="0.5" max="60" placeholder="Vorschub mm/min">
-            <button type="submit">Setzen</button>
+            <input id="feedInput" name="value" type="number" step="0.1" min="0.5" max="60" data-i18n-ph="phFeed" placeholder="Feed mm/min">
+            <button type="submit" data-i18n="btnSet">Set</button>
           </div>
         </form>
-        <p class="note">Gedrückt halten für kontinuierliche Bewegung. 1 Umdrehung der Spindel = 2 mm Weg.</p>
+        <p class="note" data-i18n="jogNote">Hold to move continuously. 1 spindle revolution = 2 mm travel.</p>
       </section>
 
       <section class="card">
         <h2>Status</h2>
         <div class="status">
-          <div class="pill"><span class="label">Treiber</span><span class="value" id="driverState">-</span></div>
-          <div class="pill"><span class="label">Bewegung</span><span class="value" id="motionState">-</span></div>
-          <div class="pill"><span class="label">Kraft</span><span class="value" id="forceValue">-</span></div>
-          <div class="pill"><span class="label">Position</span><span class="value" id="positionValue">-</span></div>
-          <div class="pill"><span class="label">Vorschub</span><span class="value" id="feedValue">-</span></div>
+          <div class="pill"><span class="label" data-i18n="lblDriver">Drivers</span><span class="value" id="driverState">-</span></div>
+          <div class="pill"><span class="label" data-i18n="lblMotion">Motion</span><span class="value" id="motionState">-</span></div>
+          <div class="pill"><span class="label" data-i18n="lblForce">Force</span><span class="value" id="forceValue">-</span></div>
+          <div class="pill"><span class="label" data-i18n="lblPosition">Position</span><span class="value" id="positionValue">-</span></div>
+          <div class="pill"><span class="label" data-i18n="lblFeed">Feed</span><span class="value" id="feedValue">-</span></div>
         </div>
-        <p class="note" id="wifiInfo">Verbinde dich mit dem ESP32</p>
+        <p class="note" id="wifiInfo" data-i18n="wifiInfo">Connect to the ESP32 network</p>
       </section>
 
       <section class="card">
-        <h2>Selbsttest</h2>
+        <h2 data-i18n="headSelftest">Selftest</h2>
         <div class="status">
-          <div class="pill"><span class="label">Gesamt</span><span class="value" id="selftestOverall">-</span></div>
-          <div class="pill"><span class="label">Zustand</span><span class="value" id="deviceState">-</span></div>
-          <div class="pill"><span class="label">Fehlercode</span><span class="value" id="faultCodeValue">-</span></div>
+          <div class="pill"><span class="label" data-i18n="lblOverall">Overall</span><span class="value" id="selftestOverall">-</span></div>
+          <div class="pill"><span class="label" data-i18n="lblState">State</span><span class="value" id="deviceState">-</span></div>
+          <div class="pill"><span class="label" data-i18n="lblFaultCode">Fault code</span><span class="value" id="faultCodeValue">-</span></div>
         </div>
         <ul class="checks" id="selftestChecks"></ul>
-        <p class="note" id="selftestNote">Startpruefung wird geladen...</p>
+        <p class="note" id="selftestNote" data-i18n="selftestNote">Loading startup selftest...</p>
       </section>
 
       <section class="card">
-        <h2>Achse</h2>
+        <h2 data-i18n="headAxis">Axis</h2>
         <div class="btnrow">
-          <button class="success" data-cmd="en">Treiber EN</button>
-          <button class="secondary" data-cmd="off">Treiber DIS</button>
-          <button data-cmd="zero">Null Position</button>
-          <button class="secondary" data-cmd="tare">Kraft Tarieren</button>
-          <button class="danger" data-cmd="stop">Stop</button>
-          <button class="secondary" data-cmd="force">Kraft loggen</button>
+          <button class="success" data-cmd="en" data-i18n="btnEnable">Enable drivers</button>
+          <button class="secondary" data-cmd="off" data-i18n="btnDisable">Disable drivers</button>
+          <button data-cmd="zero" data-i18n="btnZero">Zero position</button>
+          <button class="secondary" data-cmd="tare" data-i18n="btnTare">Tare force</button>
+          <button class="danger" data-cmd="stop" data-i18n="btnStop">Stop</button>
+          <button class="secondary" data-cmd="force" data-i18n="btnForce">Log force</button>
         </div>
       </section>
 
       <section class="card">
-        <h2>Geschwindigkeit</h2>
+        <h2 data-i18n="headSpeed">Speed</h2>
         <form data-prefix="acc">
-          <input name="value" type="number" step="0.1" min="0.1" placeholder="Beschleunigung in U/min/s">
-          <button type="submit">ACC setzen</button>
+          <input name="value" type="number" step="0.1" min="0.1" data-i18n-ph="phAcc" placeholder="Acceleration in rpm/s">
+          <button type="submit" data-i18n="btnAcc">Set ACC</button>
         </form>
-        <p class="note">Empfohlener Arbeitsbereich aktuell: ca. 0.5 bis 60 mm/min. Das entspricht bei der 2-mm-Spindel 0.25 bis 30 U/min an der Getriebe-Ausgangswelle.</p>
+        <p class="note" data-i18n="speedNote">Recommended working range: about 0.5 to 60 mm/min. With the 2 mm spindle that is 0.25 to 30 rpm at the gearbox output.</p>
       </section>
 
       <section class="card">
-        <h2>Bewegung</h2>
+        <h2 data-i18n="headMove">Motion</h2>
         <form data-prefix="move">
-          <input name="value" type="number" step="0.01" placeholder="Relativweg in mm">
-          <button type="submit">mm fahren</button>
+          <input name="value" type="number" step="0.01" data-i18n-ph="phMove" placeholder="Relative travel in mm">
+          <button type="submit" data-i18n="btnMove">Move mm</button>
         </form>
         <form data-prefix="turn">
-          <input name="value" type="number" step="0.01" placeholder="Umdrehungen relativ">
-          <button type="submit">Turns fahren</button>
+          <input name="value" type="number" step="0.01" data-i18n-ph="phTurn" placeholder="Relative revolutions">
+          <button type="submit" data-i18n="btnTurn">Move turns</button>
         </form>
       </section>
 
       <section class="card plot-card">
-        <h2>Kalibrierung Waegezelle</h2>
+        <h2 data-i18n="headCal">Load cell calibration</h2>
         <div class="btnrow">
-          <button id="calibrationZeroBtn" class="secondary" type="button">1. Unbelastet bestaetigen</button>
-          <button id="calibrationMeasureBtn" class="success" type="button">2. Gewicht messen</button>
+          <button id="calibrationZeroBtn" class="secondary" type="button" data-i18n="btnCal1">1. Confirm unloaded</button>
+          <button id="calibrationMeasureBtn" class="success" type="button" data-i18n="btnCal2">2. Measure weight</button>
         </div>
         <form id="calibrationForm">
-          <input id="calibrationMassInput" name="value" type="number" step="0.1" min="0.1" placeholder="Bekanntes Gewicht in Gramm">
+          <input id="calibrationMassInput" name="value" type="number" step="0.1" min="0.1" data-i18n-ph="phCal" placeholder="Known weight in grams">
         </form>
-        <p class="note">Ablauf: Waegezelle entlasten und Schritt 1 ausfuehren. Danach bekanntes Gewicht einhaengen, Grammwert eintragen und Schritt 2 ausfuehren. Der Kalibrierfaktor wird im ESP gespeichert und beim naechsten Start automatisch geladen.</p>
-        <p class="note" id="calibrationInfo">Kalibrierstatus wird geladen...</p>
+        <p class="note" data-i18n="calNote">Procedure: unload the load cell and run step 1. Then attach a known weight, enter its gram value and run step 2. The calibration factor is stored on the ESP and loaded automatically at the next start.</p>
+        <p class="note" id="calibrationInfo" data-i18n="calInfo">Loading calibration status...</p>
       </section>
 
     </div>
@@ -329,6 +336,133 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
     const chart = document.getElementById("forceChart");
     const ctx = chart.getContext("2d");
     const forceHistory = [];
+
+    // M2-T005 (FR-005, plan D3): client-side locale dictionary. The static
+    // markup ships English (factory default, SC-001); /api/status carries the
+    // server locale, and the EN/DE selector switches both surfaces through
+    // the same `lang <en|de>` command the serial CLI uses. DE uses native
+    // umlauts (UTF-8, D5) - unlike the ASCII-transcribed serial column.
+    const I18N = {
+      en: {
+        "title": "Test machine",
+        "h1": "JanTec Tensile Test Control",
+        "headPlot": "Force curve",
+        "plotNote": "Live plot of the measured force at 10 samples per second.",
+        "headControls": "Controls",
+        "jogUpAl": "Jog up (hold button)",
+        "jogDownAl": "Jog down (hold button)",
+        "btnStop": "Stop",
+        "phFeed": "Feed mm/min",
+        "btnSet": "Set",
+        "jogNote": "Hold to move continuously. 1 spindle revolution = 2 mm travel.",
+        "headStatus": "Status",
+        "lblDriver": "Drivers", "lblMotion": "Motion", "lblForce": "Force",
+        "lblPosition": "Position", "lblFeed": "Feed",
+        "wifiInfo": "Connect to the ESP32 network",
+        "headSelftest": "Selftest",
+        "lblOverall": "Overall", "lblState": "State", "lblFaultCode": "Fault code",
+        "selftestNote": "Loading startup selftest...",
+        "headAxis": "Axis",
+        "btnEnable": "Enable drivers", "btnDisable": "Disable drivers",
+        "btnZero": "Zero position", "btnTare": "Tare force",
+        "btnForce": "Log force",
+        "headSpeed": "Speed", "phAcc": "Acceleration in rpm/s",
+        "btnAcc": "Set ACC",
+        "speedNote": "Recommended working range: about 0.5 to 60 mm/min. With the 2 mm spindle that is 0.25 to 30 rpm at the gearbox output.",
+        "headMove": "Motion", "phMove": "Relative travel in mm",
+        "btnMove": "Move mm", "phTurn": "Relative revolutions",
+        "btnTurn": "Move turns",
+        "headCal": "Load cell calibration",
+        "btnCal1": "1. Confirm unloaded", "btnCal2": "2. Measure weight",
+        "phCal": "Known weight in grams",
+        "calNote": "Procedure: unload the load cell and run step 1. Then attach a known weight, enter its gram value and run step 2. The calibration factor is stored on the ESP and loaded automatically at the next start.",
+        "calInfo": "Loading calibration status...",
+        "driverOn": "active", "driverOff": "off",
+        "motionRun": "running", "motionIdle": "idle",
+        "stOk": "OK", "stWarn": "warning", "stFail": "fault",
+        "stNoConn": "not connected", "stNoWired": "not wired",
+        "stateIdle": "ready", "stateError": "error", "faultNone": "none",
+        "noteError": "Error state: motion commands locked, reboot required.",
+        "noteWarn": "Warnings from the startup selftest, machine operational.",
+        "noteOk": "Startup selftest, nothing notable.",
+        "calActive": "Calibration active. Factor: ",
+        "calNone": "No valid calibration stored yet.",
+        "errNoConn": "No connection to the ESP32.",
+        "errNoStatus": "Status could not be loaded.",
+        "errValue": "Please enter a value.",
+        "errWeight": "Enter the known weight in grams first."
+      },
+      de: {
+        "title": "Testmaschine",
+        "h1": "JanTec Zugversuch Steuerung",
+        "headPlot": "Kraftverlauf",
+        "plotNote": "Live-Plot der gemessenen Kraft mit 10 Samples pro Sekunde.",
+        "headControls": "Steuerung",
+        "jogUpAl": "Aufwärts joggen (Taste halten)",
+        "jogDownAl": "Abwärts joggen (Taste halten)",
+        "btnStop": "Stopp",
+        "phFeed": "Vorschub mm/min",
+        "btnSet": "Setzen",
+        "jogNote": "Gedrückt halten für kontinuierliche Bewegung. 1 Umdrehung der Spindel = 2 mm Weg.",
+        "headStatus": "Status",
+        "lblDriver": "Treiber", "lblMotion": "Bewegung", "lblForce": "Kraft",
+        "lblPosition": "Position", "lblFeed": "Vorschub",
+        "wifiInfo": "Verbinde dich mit dem ESP32",
+        "headSelftest": "Selbsttest",
+        "lblOverall": "Gesamt", "lblState": "Zustand", "lblFaultCode": "Fehlercode",
+        "selftestNote": "Startprüfung wird geladen...",
+        "headAxis": "Achse",
+        "btnEnable": "Treiber EN", "btnDisable": "Treiber DIS",
+        "btnZero": "Null Position", "btnTare": "Kraft Tarieren",
+        "btnForce": "Kraft loggen",
+        "headSpeed": "Geschwindigkeit", "phAcc": "Beschleunigung in U/min/s",
+        "btnAcc": "ACC setzen",
+        "speedNote": "Empfohlener Arbeitsbereich aktuell: ca. 0.5 bis 60 mm/min. Das entspricht bei der 2-mm-Spindel 0.25 bis 30 U/min an der Getriebe-Ausgangswelle.",
+        "headMove": "Bewegung", "phMove": "Relativweg in mm",
+        "btnMove": "mm fahren", "phTurn": "Umdrehungen relativ",
+        "btnTurn": "Turns fahren",
+        "headCal": "Kalibrierung Wägezelle",
+        "btnCal1": "1. Unbelastet bestätigen", "btnCal2": "2. Gewicht messen",
+        "phCal": "Bekanntes Gewicht in Gramm",
+        "calNote": "Ablauf: Wägezelle entlasten und Schritt 1 ausführen. Danach bekanntes Gewicht einhängen, Grammwert eintragen und Schritt 2 ausführen. Der Kalibrierfaktor wird im ESP gespeichert und beim nächsten Start automatisch geladen.",
+        "calInfo": "Kalibrierstatus wird geladen...",
+        "driverOn": "aktiv", "driverOff": "aus",
+        "motionRun": "läuft", "motionIdle": "bereit",
+        "stOk": "in Ordnung", "stWarn": "Warnung", "stFail": "Fehler",
+        "stNoConn": "nicht verbunden", "stNoWired": "nicht verdrahtet",
+        "stateIdle": "bereit", "stateError": "Fehler", "faultNone": "keiner",
+        "noteError": "Fehlerzustand: Motorkommandos gesperrt, Reboot nötig.",
+        "noteWarn": "Warnungen aus der Startprüfung, Maschine betriebsbereit.",
+        "noteOk": "Startprüfung ohne Auffällige.",
+        "calActive": "Kalibrierung aktiv. Faktor: ",
+        "calNone": "Noch keine gültige Kalibrierung gespeichert.",
+        "errNoConn": "Keine Verbindung zum ESP32.",
+        "errNoStatus": "Status kann nicht geladen werden.",
+        "errValue": "Bitte einen Wert eingeben.",
+        "errWeight": "Bitte zuerst das bekannte Gewicht in Gramm eingeben."
+      }
+    };
+    let locale = "en";
+    function t(key) {
+      const dict = I18N[locale] || I18N.en;
+      return dict[key] !== undefined ? dict[key] : I18N.en[key];
+    }
+    function applyLocale(next) {
+      locale = next === "de" ? "de" : "en";  // unknown values fall back to EN
+      document.documentElement.lang = locale;  // FR-005
+      document.querySelectorAll("[data-i18n]").forEach((el) => {
+        el.textContent = t(el.dataset.i18n);
+      });
+      document.querySelectorAll("[data-i18n-ph]").forEach((el) => {
+        el.placeholder = t(el.dataset.i18nPh);
+      });
+      document.querySelectorAll("[data-i18n-al]").forEach((el) => {
+        el.setAttribute("aria-label", t(el.dataset.i18nAl));
+      });
+      document.querySelectorAll("[data-lang]").forEach((btn) => {
+        btn.setAttribute("aria-pressed", String(btn.dataset.lang === locale));
+      });
+    }
     // The last status poll failed. The pills keep showing the last received
     // values, so the message line is the only hint the operator gets - and it
     // has to disappear again once polling works: a single dropped request must
@@ -365,11 +499,11 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
 
     let lastSelftestChecksJson = "";
     const selftestStatusLabel = {
-      "OK": "in Ordnung",
-      "WARN": "Warnung",
-      "FAIL": "Fehler",
-      "NOT_CONNECTED": "nicht verbunden",
-      "NOT_WIRED": "nicht verdrahtet"
+      "OK": "stOk",
+      "WARN": "stWarn",
+      "FAIL": "stFail",
+      "NOT_CONNECTED": "stNoConn",
+      "NOT_WIRED": "stNoWired"
     };
     const selftestStatusClass = {
       "OK": "ok",
@@ -385,17 +519,17 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
       }
       const selftest = data.selftest;
       statusFields.selftestOverall.textContent =
-        selftestStatusLabel[selftest.overall] || selftest.overall;
+        selftestStatusLabel[selftest.overall] ? t(selftestStatusLabel[selftest.overall]) : selftest.overall;
       statusFields.selftestOverall.className =
         "value " + (selftestStatusClass[selftest.overall] || "");
 
       const isError = data.state === "Error";
       statusFields.deviceState.textContent =
-        isError ? "Fehler" : data.state === "Idle" ? "bereit" : data.state;
+        isError ? t("stateError") : data.state === "Idle" ? t("stateIdle") : data.state;
       statusFields.deviceState.className = "value" + (isError ? " fail" : "");
       statusFields.faultCodeValue.textContent = data.faultCode
         ? "0x" + data.faultCode.toString(16).toUpperCase().padStart(4, "0")
-        : "keiner";
+        : t("faultNone");
 
       const checksJson = JSON.stringify(selftest.checks);
       if (checksJson !== lastSelftestChecksJson) {
@@ -407,7 +541,7 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
           name.className = "cid";
           name.textContent = check.id;
           const detail = document.createElement("span");
-          detail.textContent = selftestStatusLabel[check.status] || check.status;
+          detail.textContent = selftestStatusLabel[check.status] ? t(selftestStatusLabel[check.status]) : check.status;
           detail.className = selftestStatusClass[check.status] || "";
           row.appendChild(name);
           row.appendChild(detail);
@@ -416,10 +550,10 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
       }
 
       statusFields.selftestNote.textContent = isError
-        ? "Fehlerzustand: Motorkommandos gesperrt, Reboot noetig."
+        ? (data.faultMessage || t("noteError"))  // localized detail from T004
         : selftest.overall === "WARN"
-          ? "Warnungen aus der Startpruefung, Maschine betriebsbereit."
-          : "Startpruefung ohne Auffaellige.";
+          ? t("noteWarn")
+          : t("noteOk");
     }
 
     function setMessage(text, isError = false) {
@@ -480,7 +614,7 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
         setMessage(data.message || command, !data.ok);
         await refreshStatus();
       } catch (error) {
-        setMessage("Keine Verbindung zum ESP32.", true);
+        setMessage(t("errNoConn"), true);
       }
     }
 
@@ -488,8 +622,11 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
       try {
         const response = await fetch("/api/status");
         const data = await response.json();
-        statusFields.driverState.textContent = data.driverEnabled ? "aktiv" : "aus";
-        statusFields.motionState.textContent = data.running ? "laeuft" : "bereit";
+        if (data.locale && data.locale !== locale) {
+          applyLocale(data.locale);  // serial `lang` flips the UI live
+        }
+        statusFields.driverState.textContent = data.driverEnabled ? t("driverOn") : t("driverOff");
+        statusFields.motionState.textContent = data.running ? t("motionRun") : t("motionIdle");
         statusFields.forceValue.textContent = typeof data.forceNewton === "number"
           ? data.forceNewton.toFixed(2) + " N"
           : "n/a";
@@ -497,8 +634,8 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
         statusFields.feedValue.textContent = Number(data.feedMmPerMin).toFixed(2) + " mm/min";
         statusFields.wifiInfo.textContent = data.network;
         statusFields.calibrationInfo.textContent = data.calibrationValid
-          ? "Kalibrierung aktiv. Faktor: " + Number(data.calibrationFactor).toFixed(6)
-          : "Noch keine gueltige Kalibrierung gespeichert.";
+          ? t("calActive") + Number(data.calibrationFactor).toFixed(6)
+          : t("calNone");
         if (document.activeElement !== statusFields.feedInput) {
           statusFields.feedInput.value = Number(data.feedMmPerMin).toFixed(2);
         }
@@ -517,7 +654,7 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
         drawPlot();
       } catch (error) {
         statusUnavailable = true;
-        setMessage("Status kann nicht geladen werden.", true);
+        setMessage(t("errNoStatus"), true);
       }
     }
 
@@ -530,7 +667,7 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
         event.preventDefault();
         const value = form.elements.value.value.trim();
         if (!value) {
-          setMessage("Bitte einen Wert eingeben.", true);
+          setMessage(t("errValue"), true);
           return;
         }
         sendCommand(form.dataset.prefix + " " + value);
@@ -597,6 +734,15 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
 
     document.querySelectorAll(".jog-btn").forEach(bindJogButton);
 
+    // Language selector (FR-003): instant client-side swap, then the server
+    // persists via the shared `lang` command and echoes it in /api/status.
+    document.querySelectorAll("[data-lang]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        applyLocale(btn.dataset.lang);
+        sendCommand("lang " + btn.dataset.lang);
+      });
+    });
+
     document.getElementById("calibrationZeroBtn").addEventListener("click", () => {
       sendCommand("cal_zero");
     });
@@ -604,7 +750,7 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
     document.getElementById("calibrationMeasureBtn").addEventListener("click", () => {
       const grams = statusFields.calibrationMassInput.value.trim();
       if (!grams) {
-        setMessage("Bitte zuerst das bekannte Gewicht in Gramm eingeben.", true);
+        setMessage(t("errWeight"), true);
         return;
       }
       sendCommand("cal_apply " + grams);
@@ -612,6 +758,7 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
 
     window.addEventListener("resize", resizeCanvas);
     resizeCanvas();
+    applyLocale(locale);
     refreshStatus();
     setInterval(refreshStatus, 100);
   </script>

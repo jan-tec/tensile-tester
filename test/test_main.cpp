@@ -17,6 +17,7 @@ extern void runLocaleTests();
 extern void runTextTableTests();
 extern void runConfigTests();
 extern void runCycleModelTests();
+extern void runSampleDataTests();
 extern void runUiHtmlTests();
 
 void setUp(void) {}
@@ -36,6 +37,7 @@ int main(void) {
   runTextTableTests();
   runConfigTests();
   runCycleModelTests();
+  runSampleDataTests();
   runUiHtmlTests();
   return UNITY_END();
 }

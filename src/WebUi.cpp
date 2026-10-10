@@ -35,7 +35,7 @@ void WebUi::handleClient() {
 
 String WebUi::statusJson() {
   String json;
-  json.reserve(800);  // jane: payload is ~740 B with 5 selftest checks
+  json.reserve(900);  // jane: 722 B measured 2026-10-10 with 5 checks (EN), ~85 B per extra check -> ~900 B at M3's 7-check set
   // One steps() read for both fields: the motor task on core 0 can advance
   // the position between two reads, which would make them disagree.
   const long currentSteps = motion_.steps();
@@ -93,12 +93,17 @@ String WebUi::statusJson() {
 
   size_t count = 0;
   const CheckResult *checks = diagnostics_.checks(&count);
-  CheckStatus statuses[5] = {};
-  for (size_t i = 0; i < count && i < 5; i++) {
-    statuses[i] = checks[i].status;
+  // #90: gather is sized by the check-set contract, not a duplicated 5; the
+  // overall rating reads exactly the gathered entries, so a check beyond the
+  // buffer (impossible today, defensive by construction) can never expose
+  // uninitialized values or be silently ignored.
+  CheckStatus statuses[Diagnostics::kMaxChecks] = {};
+  size_t gathered = 0;
+  for (; gathered < count && gathered < Diagnostics::kMaxChecks; gathered++) {
+    statuses[gathered] = checks[gathered].status;
   }
   json += ",\"selftest\":{\"overall\":\"";
-  json += checkStatusName(overallStatus(statuses, count));
+  json += checkStatusName(overallStatus(statuses, gathered));
   json += "\",\"checks\":[";
   for (size_t i = 0; i < count; i++) {
     if (i != 0) {

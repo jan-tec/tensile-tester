@@ -68,12 +68,34 @@ void test_error_code_hex_fixed_width(void) {
   }
 }
 
+// #90: M3 raises the selftest set to 7 checks (endstops). The pure
+// overallStatus() is count-driven (the WebUi JSON path was the bug: a fixed
+// 5-slot gather); pin the >5 behaviour here so a future re-cap cannot hide a
+// FAILing 6th/7th row from the overall rating (M1 FR-003 safety signal).
+void test_overall_seventh_check_fail_wins(void) {
+  const CheckStatus statuses[7] = {
+      CheckStatus::Ok, CheckStatus::Ok, CheckStatus::Warn, CheckStatus::Ok,
+      CheckStatus::Ok, CheckStatus::Ok, CheckStatus::Fail};
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(CheckStatus::Fail),
+                        static_cast<int>(overallStatus(statuses, 7)));
+}
+
+void test_overall_seventh_check_warn_lowers_to_warn(void) {
+  const CheckStatus statuses[7] = {
+      CheckStatus::Ok, CheckStatus::Ok, CheckStatus::Ok, CheckStatus::Ok,
+      CheckStatus::Ok, CheckStatus::Ok, CheckStatus::Warn};
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(CheckStatus::Warn),
+                        static_cast<int>(overallStatus(statuses, 7)));
+}
+
 void runErrorCodeTests() {
   RUN_TEST(test_overall_all_ok);
   RUN_TEST(test_overall_fail_dominates);
   RUN_TEST(test_overall_warn_when_no_fail);
   RUN_TEST(test_overall_info_statuses_do_not_lower);
   RUN_TEST(test_overall_empty_is_ok);
+  RUN_TEST(test_overall_seventh_check_fail_wins);
+  RUN_TEST(test_overall_seventh_check_warn_lowers_to_warn);
   RUN_TEST(test_error_code_hex_pads_to_four_digits);
   RUN_TEST(test_error_code_hex_fixed_width);
 }

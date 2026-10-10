@@ -41,8 +41,11 @@ class Diagnostics {
   // Latest results of the executed checks (for /api/status, T007).
   const CheckResult *checks(size_t *count) const;
 
+  // FR-002 check set size. Public: presenters size their gather buffers
+  // from it (#90) instead of duplicating the constant.
+  static constexpr size_t kMaxChecks = 5;
+
  private:
-  static constexpr size_t kMaxChecks = 5;  // FR-002 check set size
   static constexpr unsigned long kHx711WaitMs = 1000;   // FR-006 wait_ready
   static constexpr unsigned long kHx711VarianceMs = 500;  // FR-006 window
 

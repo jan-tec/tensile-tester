@@ -83,6 +83,17 @@ void TestRunner::tick(unsigned long nowMs, bool deviceInError) {
     return;
   }
 
+  // jane: #165 - a commanded continuous move that is not actually running
+  // means the engine dropped the command: runForward()/runBackward() issued
+  // in the SAME loop tick as forceStop() loses to the not-yet-processed
+  // abort (bench-proven: 50 ms later the engine accepts). Every forceStop
+  // site zeroes commandedDir_, so this state is only the race - re-issue at
+  // the recorded intent (speed settings persist on the driver). Covers the
+  // homing drives AND beginPull's post-Done command.
+  if (commandedDir_ != 0 && !motion_.isRunning()) {
+    motion_.startContinuous(commandedDir_);
+  }
+
   const HomePhase before = homing_.phase();
 
   // FR-001 note: D26 hit during the back-off - the seek starts

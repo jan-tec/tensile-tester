@@ -5,9 +5,15 @@ plan.md = HOW, tasks.md = issue backlog). **One task = one issue = one PR.**
 
 | MS | Title | Status | Depends on | Spec dir |
 |----|-------|--------|------------|----------|
-| **M0** | Module split (behavior-preserving refactor) | planned | - | `specs/M0-module-split/` |
-| **M1** | Startup selftest & health diagnostics | planned | M0 | `specs/M1-startup-selftest/` |
-| **M2** | i18n DE/EN, English primary | planned | M1 | `specs/M2-i18n-de-en/` |
+| **M0** | Module split (behavior-preserving refactor) | done | - | `specs/M0-module-split/` |
+| **M1** | Startup selftest & health diagnostics | active | M0 | `specs/M1-startup-selftest/` |
+| **M2** | i18n DE/EN, English primary | done | M1 | `specs/M2-i18n-de-en/` |
+| **M3** | Automated tensile test cycle | active | M1, #71 | `specs/M3-tensile-test-cycle/` |
+| **M4** | Constant-force hold | planned | M3 | `specs/M4-constant-force-hold/` |
+| **M5** | Load cell calibration | planned | M1 | `specs/M5-loadcell-calibration/` |
+| **M6** | Serial JSON API | planned | - | `specs/M6-serial-json-api/` |
+| **M7** | Web UI redesign | planned | M6 | `specs/M7-web-ui-redesign/` |
+| **M8** | LED status language (GPIO2) | planned | M1, M3, #76, #128 | `specs/M8-led-status/` |
 
 ## Issue tracking
 

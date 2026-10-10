@@ -30,10 +30,12 @@ workflow from the web UI without a serial terminal.
 
 As the owner, the UI reads as a clean instrument panel.
 
-- **Given** the rendered page, **Then** it is colour-free (monochrome),
-  modern, and uncluttered, in the style of the Qitech Automation reference
-  (issue #83 screenshot - asset not retrievable at spec time, blocked on
-  operator re-attachment).
+- **Given** the rendered page, **Then** it is monochrome with exactly ONE
+  functional accent - red for Stop/danger states, used nowhere else - in
+  the style of the Qitech Automation reference (issue #83 screenshot -
+  asset not retrievable at spec time, blocked on operator re-attachment).
+  Owner decision 2026-10-11 (#167 taste probe, rule N8): the emergency
+  action stays unmissable; strict zero-colour was rejected.
 
 ### US3 (P1) - Tear test end-to-end from the browser (#167)
 
@@ -91,7 +93,9 @@ softAP without a serial terminal.
 
 ### Non-Functional
 
-- Colour-free monochrome design; no external CDN assets (offline softAP).
+- Monochrome design with exactly one accent - red, reserved for
+  Stop/danger states (US2 owner decision 2026-10-11); no second hue
+  anywhere, including the favicon. No external CDN assets (offline softAP).
 - Page must remain a single PROGMEM asset served by `WebUi` (architecture
   unchanged).
 

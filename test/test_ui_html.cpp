@@ -215,6 +215,20 @@ void test_language_selector_present(void) {
                            "UI does not follow the server locale");
 }
 
+// M2-T006: the client keeps the last locale across reloads (localStorage,
+// read before the first paint, written on every switch) and never trusts the
+// cached value for more than the two known locales - the server value via
+// /api/status remains the authority.
+void test_locale_survives_page_reload(void) {
+  TEST_ASSERT_TRUE_MESSAGE(inHtml("localStorage.getItem(\"locale\")"),
+                           "locale not read back before first paint");
+  TEST_ASSERT_TRUE_MESSAGE(inHtml("localStorage.setItem(\"locale\", locale)"),
+                           "locale not persisted on switch");
+  // cached value cannot inject anything but de; anything else stays EN
+  TEST_ASSERT_TRUE_MESSAGE(inHtml("localStorage.getItem(\"locale\") === \"de\""),
+                           "cached locale is not validated against the known set");
+}
+
 void runUiHtmlTests(void) {
   RUN_TEST(test_index_html_has_content);
   RUN_TEST(test_index_html_declares_language_and_charset);
@@ -227,4 +241,5 @@ void runUiHtmlTests(void) {
   RUN_TEST(test_i18n_dictionary_has_both_locales);
   RUN_TEST(test_i18n_dictionary_is_complete);
   RUN_TEST(test_language_selector_present);
+  RUN_TEST(test_locale_survives_page_reload);
 }

@@ -442,13 +442,28 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
         "errWeight": "Bitte zuerst das bekannte Gewicht in Gramm eingeben."
       }
     };
-    let locale = "en";
+    // M2-T006: the last locale survives page reload (localStorage) until the
+    // first /api/status poll confirms the server value (NVS) - no EN flash
+    // after `lang de` + reload, and a cleared cache falls back to EN, the
+    // factory default (FR-002).
+    let locale = (function () {
+      try {
+        return localStorage.getItem("locale") === "de" ? "de" : "en";
+      } catch (e) {
+        return "en";
+      }
+    })();
     function t(key) {
       const dict = I18N[locale] || I18N.en;
       return dict[key] !== undefined ? dict[key] : I18N.en[key];
     }
     function applyLocale(next) {
       locale = next === "de" ? "de" : "en";  // unknown values fall back to EN
+      try {
+        localStorage.setItem("locale", locale);
+      } catch (e) {
+        // private-mode browsers: in-session switching keeps working
+      }
       document.documentElement.lang = locale;  // FR-005
       document.querySelectorAll("[data-i18n]").forEach((el) => {
         el.textContent = t(el.dataset.i18n);

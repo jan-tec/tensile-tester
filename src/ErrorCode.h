@@ -91,6 +91,20 @@ inline const char* errorCodeName(ErrorCode code) {
   }
 }
 
+// FR-007 log grammar: codes are always 4 padded upper-case hex digits with
+// an 0x prefix (`code=0x0301`, never `0x301` - issue #97). Writes 6 chars
+// + NUL into out (exactly 7 bytes) and returns out.
+inline const char* errorCodeHex(uint16_t code, char (&out)[7]) {
+  static const char kDigits[] = "0123456789ABCDEF";
+  out[0] = '0';
+  out[1] = 'x';
+  for (unsigned i = 0; i < 4; i++) {
+    out[2 + i] = kDigits[(code >> (12 - 4 * i)) & 0xF];
+  }
+  out[6] = '\0';
+  return out;
+}
+
 // FR-008: overall rating of the /api/status selftest object. Any FAIL
 // dominates, otherwise any WARN. NOT_WIRED / NOT_CONNECTED are info only
 // (D3: absence is not a fault) and never lower the rating.

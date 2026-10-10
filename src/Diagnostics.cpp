@@ -259,8 +259,9 @@ void Diagnostics::printCheck(const CheckResult &result) {
   Serial.print(F(" result="));
   Serial.print(checkStatusName(result.status));
   if (result.errorCode != ErrorCode::None) {
-    Serial.print(F(" code=0x"));
-    Serial.print(static_cast<uint16_t>(result.errorCode), HEX);
+    char codeBuf[7];
+    Serial.print(F(" code="));
+    Serial.print(errorCodeHex(static_cast<uint16_t>(result.errorCode), codeBuf));
   }
   Serial.print(F(" meas="));
   Serial.print(result.measurement, 2);
@@ -275,8 +276,9 @@ void Diagnostics::printState(DeviceState oldState, DeviceState newState,
   Serial.print(F(" new="));
   Serial.print(deviceStateName(newState));
   if (code != 0) {
-    Serial.print(F(" code=0x"));
-    Serial.print(code, HEX);
+    char codeBuf[7];
+    Serial.print(F(" code="));
+    Serial.print(errorCodeHex(code, codeBuf));
   }
   Serial.println();
 }

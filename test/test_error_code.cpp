@@ -7,6 +7,8 @@
 // fault, never FAIL, never lowers the overall rating).
 #include <unity.h>
 
+#include <cstring>
+
 #include <ErrorCode.h>
 
 void test_overall_all_ok(void) {
@@ -43,10 +45,35 @@ void test_overall_empty_is_ok(void) {
                     static_cast<int>(overallStatus(statuses, 0)));
 }
 
+// FR-007 machine-readable grammar: codes are 4 padded upper-case hex digits.
+// `Serial.print(v, HEX)` drops the leading zeros, so 0x0301 printed as
+// `0x301` and broke fixed-width log parsers (issue #97).
+void test_error_code_hex_pads_to_four_digits(void) {
+  char buf[7];
+  TEST_ASSERT_EQUAL_STRING("0x0000", errorCodeHex(0x0000, buf));
+  TEST_ASSERT_EQUAL_STRING("0x0301", errorCodeHex(0x301, buf));
+  TEST_ASSERT_EQUAL_STRING("0x0F0A", errorCodeHex(0xF0A, buf));
+  TEST_ASSERT_EQUAL_STRING("0xFFFF", errorCodeHex(0xFFFF, buf));
+}
+
+void test_error_code_hex_fixed_width(void) {
+  // Fixed width is the whole point: `prefix + " code=" + errorCodeHex(v)`
+  // must not shift the columns that follow.
+  char buf[7];
+  for (unsigned i = 0; i < 4; ++i) {
+    errorCodeHex(static_cast<uint16_t>(1u << (i * 4)), buf);
+    TEST_ASSERT_EQUAL_UINT(6u, static_cast<unsigned>(strlen(buf)));
+    TEST_ASSERT_EQUAL_CHAR('0', buf[0]);
+    TEST_ASSERT_EQUAL_CHAR('x', buf[1]);
+  }
+}
+
 void runErrorCodeTests() {
   RUN_TEST(test_overall_all_ok);
   RUN_TEST(test_overall_fail_dominates);
   RUN_TEST(test_overall_warn_when_no_fail);
   RUN_TEST(test_overall_info_statuses_do_not_lower);
   RUN_TEST(test_overall_empty_is_ok);
+  RUN_TEST(test_error_code_hex_pads_to_four_digits);
+  RUN_TEST(test_error_code_hex_fixed_width);
 }

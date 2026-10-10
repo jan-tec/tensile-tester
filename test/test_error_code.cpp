@@ -88,6 +88,29 @@ void test_overall_seventh_check_warn_lowers_to_warn(void) {
                         static_cast<int>(overallStatus(statuses, 7)));
 }
 
+// #122 (M3-T006): the 0x05xx endstop block reserved by the M3 homing/test
+// cycle. Values are frozen the moment they ship - never renumber; names
+// follow the existing UPPER_SNAKE grammar (FR-007 log surface).
+void test_endstop_error_block(void) {
+  TEST_ASSERT_EQUAL_UINT16(
+      0x0501, static_cast<uint16_t>(ErrorCode::EndstopSeekTimeout));
+  TEST_ASSERT_EQUAL_UINT16(
+      0x0502, static_cast<uint16_t>(ErrorCode::EndstopInstantTrigger));
+  TEST_ASSERT_EQUAL_UINT16(
+      0x0503, static_cast<uint16_t>(ErrorCode::EndstopStuckSwitch));
+  TEST_ASSERT_EQUAL_UINT16(
+      0x0504, static_cast<uint16_t>(ErrorCode::EndstopPressedOrBroken));
+  TEST_ASSERT_EQUAL_STRING("ENDSTOP_SEEK_TIMEOUT",
+                           errorCodeName(ErrorCode::EndstopSeekTimeout));
+  TEST_ASSERT_EQUAL_STRING("ENDSTOP_INSTANT_TRIGGER",
+                           errorCodeName(ErrorCode::EndstopInstantTrigger));
+  TEST_ASSERT_EQUAL_STRING("ENDSTOP_STUCK_SWITCH",
+                           errorCodeName(ErrorCode::EndstopStuckSwitch));
+  TEST_ASSERT_EQUAL_STRING(
+      "ENDSTOP_PRESSED_OR_BROKEN",
+      errorCodeName(ErrorCode::EndstopPressedOrBroken));
+}
+
 void runErrorCodeTests() {
   RUN_TEST(test_overall_all_ok);
   RUN_TEST(test_overall_fail_dominates);
@@ -96,6 +119,7 @@ void runErrorCodeTests() {
   RUN_TEST(test_overall_empty_is_ok);
   RUN_TEST(test_overall_seventh_check_fail_wins);
   RUN_TEST(test_overall_seventh_check_warn_lowers_to_warn);
+  RUN_TEST(test_endstop_error_block);
   RUN_TEST(test_error_code_hex_pads_to_four_digits);
   RUN_TEST(test_error_code_hex_fixed_width);
 }

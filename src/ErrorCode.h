@@ -23,6 +23,12 @@ enum class ErrorCode : uint16_t {
   Hx711NoVariation = 0x0301,  // WARN diagnostic (FR-006), not a failure
   // Motor (0x04xx)
   MotorNoFeedback = 0x0401,  // info note (plan D5): no sense wiring exists
+  // Endstops (0x05xx, M3): names must stay stable - machine-readable log
+  // grammar (FR-007). Never renumber.
+  EndstopSeekTimeout = 0x0501,   // homing seek never found the switch
+  EndstopInstantTrigger = 0x0502, // switch already closed at seek start
+  EndstopStuckSwitch = 0x0503,    // debounced chatter, no clean edge
+  EndstopPressedOrBroken = 0x0504, // WARN only (boot check): pressed or broken
 };
 
 // Check outcome (FR-003). Absence is not a fault (D3): NOT_CONNECTED and
@@ -86,6 +92,14 @@ inline const char* errorCodeName(ErrorCode code) {
       return "HX711_NO_VARIATION";
     case ErrorCode::MotorNoFeedback:
       return "MOTOR_NO_FEEDBACK";
+    case ErrorCode::EndstopSeekTimeout:
+      return "ENDSTOP_SEEK_TIMEOUT";
+    case ErrorCode::EndstopInstantTrigger:
+      return "ENDSTOP_INSTANT_TRIGGER";
+    case ErrorCode::EndstopStuckSwitch:
+      return "ENDSTOP_STUCK_SWITCH";
+    case ErrorCode::EndstopPressedOrBroken:
+      return "ENDSTOP_PRESSED_OR_BROKEN";
     default:
       return "";
   }

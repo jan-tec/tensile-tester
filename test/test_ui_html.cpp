@@ -124,7 +124,8 @@ void test_jog_supports_keyboard_activation(void) {
 static std::vector<std::string> extractKeys(const char *from, const char *to,
                                             const std::string &prefix,
                                             bool keysOnly = false,
-                                            bool wordStart = false) {
+                                            bool wordStart = false,
+                                            bool dedup = true) {
   std::vector<std::string> keys;
   for (const char *p = from; p != nullptr && p < to;) {
     p = std::strstr(p, prefix.c_str());
@@ -145,7 +146,9 @@ static std::vector<std::string> extractKeys(const char *from, const char *to,
     }
   }
   std::sort(keys.begin(), keys.end());
-  keys.erase(std::unique(keys.begin(), keys.end()), keys.end());
+  if (dedup) {
+    keys.erase(std::unique(keys.begin(), keys.end()), keys.end());
+  }
   return keys;
 }
 
@@ -294,6 +297,73 @@ void test_all_data_prefix_values_are_value_commands(void) {
   }
 }
 
+// #99 (WCAG 3.3.2): the numeric inputs were named by placeholder only, and a
+// placeholder vanishes exactly when the operator starts typing. Every numeric
+// input needs an id AND a real, visible <label for="..."> - checked across
+// ALL number inputs by scanning the tags, so a 6th input cannot escape.
+// Visibility/contrast is a rendering property; the markup carries no
+// display:none for labels (asserted) and the CSS uses the page's primary
+// text color - confirmed on the bench (see PR).
+void test_number_inputs_have_visible_labels(void) {
+  uint32_t count = 0;
+  const char *p = INDEX_HTML;
+  while ((p = std::strstr(p, "<input")) != nullptr) {
+    const char *end = std::strchr(p, '>');
+    if (end == nullptr) {
+      break;
+    }
+    const std::string tag(p, static_cast<size_t>(end - p));
+    p = end;
+    if (tag.find("type=\"number\"") == std::string::npos) {
+      continue;
+    }
+    ++count;
+    const std::string idKey = "id=\"";
+    const size_t idPos = tag.find(idKey);
+    TEST_ASSERT_TRUE_MESSAGE(idPos != std::string::npos, "numeric input without id");
+    const size_t idEnd = tag.find('"', idPos + idKey.size());
+    const std::string id = tag.substr(idPos + idKey.size(), idEnd - idPos - idKey.size());
+    const std::string labelFor = "<label for=\"" + id + "\"";
+    TEST_ASSERT_TRUE_MESSAGE(inHtml(labelFor.c_str()),
+                             "numeric input lacks a <label for>");
+  }
+  // guard: the five known numeric inputs exist; a scan regression must not
+  // pass vacuously (#98 pattern).
+  TEST_ASSERT_GREATER_OR_EQUAL_UINT32_MESSAGE(5, count,
+                                              "numeric input scan found nothing");
+  // labels must not be hidden by CSS (AC: visible on screen).
+  TEST_ASSERT_TRUE_MESSAGE(inHtml("label {"), "no label style block");
+  TEST_ASSERT_TRUE_MESSAGE(!inHtml("label { display:none") &&
+                               !inHtml("label { display: none"),
+                           "labels are hidden - WCAG 3.3.2 violation");
+}
+
+// #99 development finding: JS silently lets the LAST duplicate object key
+// win - a new input-label key "lblFeed" was overwritten by the status pill's
+// "lblFeed" and the label rendered the pill's text. Duplicate dictionary keys
+// are a hard error, in both locales.
+void test_i18n_dictionary_has_no_duplicate_keys(void) {
+  const char *dict = dictStart();
+  TEST_ASSERT_NOT_NULL(dict);
+  const char *en = std::strstr(dict, "en: {");
+  const char *de = std::strstr(dict, "de: {");
+  TEST_ASSERT_NOT_NULL(en);
+  TEST_ASSERT_NOT_NULL(de);
+  const char *dictEnd = std::strstr(de, "\n    };");
+  TEST_ASSERT_NOT_NULL(dictEnd);
+  std::vector<std::string> enRaw =
+      extractKeys(en, de, "\"", true, false, false);
+  std::vector<std::string> deRaw =
+      extractKeys(de, dictEnd, "\"", true, false, false);
+  // sorted by extractKeys, so std::unique leaves exactly one of each run
+  const size_t enUnique = std::unique(enRaw.begin(), enRaw.end()) - enRaw.begin();
+  const size_t deUnique = std::unique(deRaw.begin(), deRaw.end()) - deRaw.begin();
+  TEST_ASSERT_EQUAL_UINT_MESSAGE(enRaw.size(), enUnique,
+                                 "duplicate key in EN dictionary");
+  TEST_ASSERT_EQUAL_UINT_MESSAGE(deRaw.size(), deUnique,
+                                 "duplicate key in DE dictionary");
+}
+
 void runUiHtmlTests(void) {
   RUN_TEST(test_index_html_has_content);
   RUN_TEST(test_index_html_declares_language_and_charset);
@@ -309,4 +379,6 @@ void runUiHtmlTests(void) {
   RUN_TEST(test_all_data_prefix_values_are_value_commands);
   RUN_TEST(test_language_selector_present);
   RUN_TEST(test_locale_survives_page_reload);
+  RUN_TEST(test_number_inputs_have_visible_labels);
+  RUN_TEST(test_i18n_dictionary_has_no_duplicate_keys);
 }

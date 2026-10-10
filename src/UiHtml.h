@@ -208,6 +208,12 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
       color: var(--muted);
       font-size: 0.92rem;
     }
+    label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text);
+    }
     #message {
       min-height: 24px;
       margin-top: 16px;
@@ -245,6 +251,7 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
           <button class="arrow secondary jog-btn" data-jog="down" type="button" data-i18n-al="jogDownAl" aria-label="Jog down (hold button)">&#9660;</button>
         </div>
         <form data-prefix="feed" class="speed-form">
+          <label for="feedInput" data-i18n="inFeed">Feed (mm/min)</label>
           <div class="speed-inline">
             <input id="feedInput" name="value" type="number" step="0.1" min="0.5" max="60" data-i18n-ph="phFeed" placeholder="Feed mm/min">
             <button type="submit" data-i18n="btnSet">Set</button>
@@ -291,7 +298,8 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
       <section class="card">
         <h2 data-i18n="headSpeed">Speed</h2>
         <form data-prefix="acc">
-          <input name="value" type="number" step="0.1" min="0.1" data-i18n-ph="phAcc" placeholder="Acceleration in rpm/s">
+          <label for="accInput" data-i18n="inAcc">Acceleration (rpm/s)</label>
+          <input id="accInput" name="value" type="number" step="0.1" min="0.1" data-i18n-ph="phAcc" placeholder="Acceleration in rpm/s">
           <button type="submit" data-i18n="btnAcc">Set ACC</button>
         </form>
         <p class="note" data-i18n="speedNote">Recommended working range: about 0.5 to 60 mm/min. With the 2 mm spindle that is 0.25 to 30 rpm at the gearbox output.</p>
@@ -300,11 +308,13 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
       <section class="card">
         <h2 data-i18n="headMove">Motion</h2>
         <form data-prefix="move">
-          <input name="value" type="number" step="0.01" data-i18n-ph="phMove" placeholder="Relative travel in mm">
+          <label for="moveInput" data-i18n="inMove">Relative travel (mm)</label>
+          <input id="moveInput" name="value" type="number" step="0.01" data-i18n-ph="phMove" placeholder="Relative travel in mm">
           <button type="submit" data-i18n="btnMove">Move mm</button>
         </form>
         <form data-prefix="turn">
-          <input name="value" type="number" step="0.01" data-i18n-ph="phTurn" placeholder="Relative revolutions">
+          <label for="turnInput" data-i18n="inTurn">Relative revolutions</label>
+          <input id="turnInput" name="value" type="number" step="0.01" data-i18n-ph="phTurn" placeholder="Relative revolutions">
           <button type="submit" data-i18n="btnTurn">Move turns</button>
         </form>
       </section>
@@ -316,6 +326,7 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
           <button id="calibrationMeasureBtn" class="success" type="button" data-i18n="btnCal2">2. Measure weight</button>
         </div>
         <form id="calibrationForm">
+          <label for="calibrationMassInput" data-i18n="inCal">Known weight (grams)</label>
           <input id="calibrationMassInput" name="value" type="number" step="0.1" min="0.1" data-i18n-ph="phCal" placeholder="Known weight in grams">
         </form>
         <p class="note" data-i18n="calNote">Procedure: unload the load cell and run step 1. Then attach a known weight, enter its gram value and run step 2. The calibration factor is stored on the ESP and loaded automatically at the next start.</p>
@@ -352,7 +363,7 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
         "jogUpAl": "Jog up (hold button)",
         "jogDownAl": "Jog down (hold button)",
         "btnStop": "Stop",
-        "phFeed": "Feed mm/min",
+        "inFeed": "Feed (mm/min)", "phFeed": "Feed mm/min",
         "btnSet": "Set",
         "jogNote": "Hold to move continuously. 1 spindle revolution = 2 mm travel.",
         "headStatus": "Status",
@@ -366,15 +377,15 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
         "btnEnable": "Enable drivers", "btnDisable": "Disable drivers",
         "btnZero": "Zero position", "btnTare": "Tare force",
         "btnForce": "Log force",
-        "headSpeed": "Speed", "phAcc": "Acceleration in rpm/s",
+        "headSpeed": "Speed", "inAcc": "Acceleration (rpm/s)", "phAcc": "Acceleration in rpm/s",
         "btnAcc": "Set ACC",
         "speedNote": "Recommended working range: about 0.5 to 60 mm/min. With the 2 mm spindle that is 0.25 to 30 rpm at the gearbox output.",
-        "headMove": "Motion", "phMove": "Relative travel in mm",
-        "btnMove": "Move mm", "phTurn": "Relative revolutions",
+        "headMove": "Motion", "inMove": "Relative travel (mm)", "phMove": "Relative travel in mm",
+        "btnMove": "Move mm", "inTurn": "Relative revolutions", "phTurn": "Relative revolutions",
         "btnTurn": "Move turns",
         "headCal": "Load cell calibration",
         "btnCal1": "1. Confirm unloaded", "btnCal2": "2. Measure weight",
-        "phCal": "Known weight in grams",
+        "inCal": "Known weight (grams)", "phCal": "Known weight in grams",
         "calNote": "Procedure: unload the load cell and run step 1. Then attach a known weight, enter its gram value and run step 2. The calibration factor is stored on the ESP and loaded automatically at the next start.",
         "calInfo": "Loading calibration status...",
         "driverOn": "active", "driverOff": "off",
@@ -401,7 +412,7 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
         "jogUpAl": "Aufwärts joggen (Taste halten)",
         "jogDownAl": "Abwärts joggen (Taste halten)",
         "btnStop": "Stopp",
-        "phFeed": "Vorschub mm/min",
+        "inFeed": "Vorschub (mm/min)", "phFeed": "Vorschub mm/min",
         "btnSet": "Setzen",
         "jogNote": "Gedrückt halten für kontinuierliche Bewegung. 1 Umdrehung der Spindel = 2 mm Weg.",
         "headStatus": "Status",
@@ -415,15 +426,15 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
         "btnEnable": "Treiber EN", "btnDisable": "Treiber DIS",
         "btnZero": "Null Position", "btnTare": "Kraft Tarieren",
         "btnForce": "Kraft loggen",
-        "headSpeed": "Geschwindigkeit", "phAcc": "Beschleunigung in U/min/s",
+        "headSpeed": "Geschwindigkeit", "inAcc": "Beschleunigung (U/min/s)", "phAcc": "Beschleunigung in U/min/s",
         "btnAcc": "ACC setzen",
         "speedNote": "Empfohlener Arbeitsbereich aktuell: ca. 0.5 bis 60 mm/min. Das entspricht bei der 2-mm-Spindel 0.25 bis 30 U/min an der Getriebe-Ausgangswelle.",
-        "headMove": "Bewegung", "phMove": "Relativweg in mm",
-        "btnMove": "mm fahren", "phTurn": "Umdrehungen relativ",
+        "headMove": "Bewegung", "inMove": "Relativweg (mm)", "phMove": "Relativweg in mm",
+        "btnMove": "mm fahren", "inTurn": "Umdrehungen relativ", "phTurn": "Umdrehungen relativ",
         "btnTurn": "Turns fahren",
         "headCal": "Kalibrierung Wägezelle",
         "btnCal1": "1. Unbelastet bestätigen", "btnCal2": "2. Gewicht messen",
-        "phCal": "Bekanntes Gewicht in Gramm",
+        "inCal": "Bekanntes Gewicht in Gramm", "phCal": "Bekanntes Gewicht in Gramm",
         "calNote": "Ablauf: Wägezelle entlasten und Schritt 1 ausführen. Danach bekanntes Gewicht einhängen, Grammwert eintragen und Schritt 2 ausführen. Der Kalibrierfaktor wird im ESP gespeichert und beim nächsten Start automatisch geladen.",
         "calInfo": "Kalibrierstatus wird geladen...",
         "driverOn": "aktiv", "driverOff": "aus",

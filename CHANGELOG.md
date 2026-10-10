@@ -13,6 +13,44 @@ and API).
 
 ### Added
 
+- LED status language (M8, #128/#132/#134/#136, 2026-10-10): `lib/FirmwareCore/src/LedPattern.h`
+  pure pattern engine (5 base patterns as functions of time, 2-rep event
+  overlays latest-wins, Error phase-restart + overlay drop, gamma-2.2 duties
+  7/34/83/255) with the TC-101 flash-safety invariant (<=3 rising edges per
+  1000 ms - WCAG 2.3.1 headroom - asserted over every pattern, 13 host
+  tests); `src/LedStatus.{h,cpp}` LEDC driver on GPIO2 (1 kHz, 8-bit,
+  write-on-change, configured post-selftest - strapping pin); App wiring
+  maps DeviceState -> base pattern and endstop edges (GPIO 25/26) -> the
+  long-flash overlay outside Error. Bench-verified: heartbeat, SC-001
+  endstop press feedback (#134 evidence). Spec + research record:
+  `specs/M8-led-status/` (WCAG 2.3.1, NIH/PMC photosensitivity guidance,
+  OpenShock pattern practice, gamma PWM sources); operator doc
+  `docs/led-status.md`
+- M3 T008-T010 hardware primitives (2026-10-10, #133/#142/#144):
+  `src/Endstops.{h,cpp}` GPIO 25/26 `INPUT_PULLUP`, 5 ms cadence,
+  3-sample debounce, rising edges cleared on read, bootState snapshot;
+  `IMotion::startContinuous(direction)` (runForward/runBackward homing
+  seeks) + `forceStop()` (immediate stop, queue flushed - `stop()` keeps
+  its ramp); `ILoadCell::rawForceNewton()` pre-filter snapshot of the
+  poll() sample (BreakDetector input, no second blocking HX711 read)
+- M3 T003-T007 pure models (2026-10-10, #125/#126/#127/#123/#124):
+  `TestCycleModel` transition table (incl. `Limit` no-code, `Aborted`,
+  `BufferFull`), `SampleBuffer` + exact-once `formatCsvChunk()` CSV
+  formatter, `TestConfig` defaults + `clampTestConfig()` bounds, `0x05xx`
+  endstop error block (0x0501-0x0504, no renumbering), parser for
+  `home`/`home top`/`test` + `data <from>` index. All host-tested RED-first
+  (suite 96 -> 170 cases)
+- M2 T003-T008 locale completion (2026-10-10, #107/#109/#110/#111/#112/#113/#114):
+  serial CLI routes through `msg()` with `lang` command; M1 fault
+  presentation localized; English-first web UI with embedded EN/DE
+  dictionary; locale persists across reload (server authority); locale
+  drift gate host test; English-first project docs
+- Hardware CAD sources (2026-10-10, #129): `hardware/mainboard-atlas/`
+  KiCad 9 project (schematic, PCB, symbols/footprints, gerbers) imported
+  from the designer's untracked `raw/`; ENDSTOP1 = GPIO25 on J5 verified
+  via kicad-cli netlist export; `*.kicad_prl` untracked (kicad-cli
+  rewrites it)
+
 - Locale system end to end (M2 T003-T006, #33/#34/#35/#36): English-first
   UI. Serial CLI strings route through `Text::msg(Msg)` (fresh boot speaks
   English), `lang <en|de>` + NVS `locale` key persist the choice; M1 fault

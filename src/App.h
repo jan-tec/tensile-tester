@@ -14,6 +14,7 @@
 #include "Endstops.h"
 #include "ILoadCell.h"
 #include "IMotion.h"
+#include "LedStatus.h"
 #include "PowerSense.h"
 #include "SerialCli.h"
 #include "Settings.h"
@@ -55,4 +56,18 @@ class App {
   Diagnostics &diagnostics_;
   unsigned long lastStatusMs_ = 0;
   DeviceState lastModelState_ = DeviceState::Booting;
+
+  // M8: LED base-state mapping (plan D2) - Homing/Running become
+  // reachable with M3-T011; the mapping is complete from day one.
+  static led::LedBase ledBaseFor(DeviceState state) {
+    switch (state) {
+      case DeviceState::Booting:
+      case DeviceState::SelfTest: return led::LedBase::SelfTest;
+      case DeviceState::Error:    return led::LedBase::Error;
+      case DeviceState::Idle:     break;
+    }
+    return led::LedBase::Idle;
+  }
+
+  LedStatus led_;
 };

@@ -24,6 +24,11 @@ void App::begin() {
   // the Web UI answers so /api/status can already report the checks.
   diagnostics_.runBootSelfTest(settings_, loadcell_, motion_, powerSense_);
 
+  // M8 FR-009: LED configured only after the boot decisions (GPIO2 is a
+  // strapping pin); the pattern engine starts with the post-selftest
+  // state, so Idle shows the heartbeat and a boot FAIL shows Error.
+  led_.begin(millis());
+
   webUi_.begin();
 }
 
@@ -47,6 +52,16 @@ void App::loop() {
     motion_.disable();
   }
   lastModelState_ = modelState;
+
+  // M8: endstop edges -> LED overlay (FR-005 emission window: forwarded
+  // from every non-Error state; Error keeps the LED per FR-008). Edges
+  // are read-and-clear, so they never queue across states.
+  led::LedEvent ledEvent = led::LedEvent::None;
+  if (modelState != DeviceState::Error &&
+      (endstops_.bottomEdge() || endstops_.topEdge())) {
+    ledEvent = led::LedEvent::EndstopEdge;
+  }
+  led_.tick(ledBaseFor(modelState), ledEvent, millis());
 
   const unsigned long now = millis();
   if (now - lastStatusMs_ >= kStatusIntervalMs) {

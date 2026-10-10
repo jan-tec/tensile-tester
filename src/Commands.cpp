@@ -511,6 +511,32 @@ bool Commands::execute(String command, String &response) {
     return true;
   }
 
+  if (command == "ends") {
+    // jane: bench debug telemetry (T014 homing diagnosis), deliberately
+    // raw English like the FR-007 CHECK grammar - not a Msg row (it is
+    // machine-facing debug output, never localized).
+    const HomePhase phase = testRunner_.homing().phase();
+    const char *phaseName = "?";
+    switch (phase) {
+      case HomePhase::Idle: phaseName = "Idle"; break;
+      case HomePhase::BackOff: phaseName = "BackOff"; break;
+      case HomePhase::SeekDown: phaseName = "SeekDown"; break;
+      case HomePhase::FinalSeek: phaseName = "FinalSeek"; break;
+      case HomePhase::SeekUp: phaseName = "SeekUp"; break;
+      case HomePhase::BackOffDown: phaseName = "BackOffDown"; break;
+      case HomePhase::Done: phaseName = "Done"; break;
+      case HomePhase::Fault: phaseName = "Fault"; break;
+    }
+    char tel[64];
+    snprintf(tel, sizeof(tel), "E1:%d E2:%d HP:%s HF:%d HS:%s",
+             testRunner_.endstopBottom() ? 1 : 0,
+             testRunner_.endstopTop() ? 1 : 0, phaseName,
+             static_cast<int>(testRunner_.homing().fault()),
+             TestCycleModel::name(testRunner_.testState()));
+    response = tel;
+    return true;
+  }
+
   response = msg(Msg::UnknownCommand);
   return false;
 }

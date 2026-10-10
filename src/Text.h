@@ -184,10 +184,10 @@
   MSG(HelpCommandsSuffix, \
       "rpm, acc, feed, move, turn, jog up, jog down, cal_zero, cal_apply, " \
       "home, home top, test, testspeed, testarm, testdrop, data, " \
-      "testdata, homeseek, hometimeout, lang", \
+      "testdata, homeseek, hometimeout, ends, lang", \
       "rpm, acc, feed, move, turn, jog up, jog down, cal_zero, cal_apply, " \
       "home, home top, test, testspeed, testarm, testdrop, data, " \
-      "testdata, homeseek, hometimeout, lang")  /* command names are locale-invariant */ \
+      "testdata, homeseek, hometimeout, ends, lang")  /* command names are locale-invariant */ \
   /* Test cycle (M3 FR-005/FR-006, T012). Composed prefix + value + the \
      existing unit suffix rows - no format strings. */ \
   MSG(HomeStarted, \

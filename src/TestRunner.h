@@ -94,6 +94,10 @@ class TestRunner {
   // broken-wire rule: a datum is only valid while the endstop circuit
   // that produced it is powered - deliberately not NVS-persisted).
   bool homed() const { return homed_; }
+  // Bench telemetry (T014): debounced endstop levels for the `ends`
+  // debug command - the one state bit the homing diagnosis needed.
+  bool endstopBottom() const { return endstops_.bottom(); }
+  bool endstopTop() const { return endstops_.top(); }
   TestState testState() const { return cycle_.state(); }
   const HomingModel &homing() const { return homing_; }
 

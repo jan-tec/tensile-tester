@@ -2,7 +2,9 @@
 
 ESP32 firmware for a tensile test machine (Zugversuchsmaschine): a
 gear-stepper spindle with load-cell force measurement, controlled over a
-WiFi web UI or the serial CLI. The machine UI is in German.
+WiFi web UI or the serial CLI. The UI is English-first with a German locale
+switch (`lang de` on the serial CLI or the Web UI selector; the choice is
+persisted in NVS and survives reboot).
 
 ## Hardware
 

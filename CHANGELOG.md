@@ -13,6 +13,27 @@ and API).
 
 ### Added
 
+- Locale system end to end (M2 T003-T006, #33/#34/#35/#36): English-first
+  UI. Serial CLI strings route through `Text::msg(Msg)` (fresh boot speaks
+  English), `lang <en|de>` + NVS `locale` key persist the choice; M1 fault
+  codes localize via `msgForFault` on serial and in a new `/api/status`
+  `faultMessage` field; the Web UI serves English statics plus an embedded
+  EN/DE JS dictionary with a header selector and follows the server locale
+  (`locale` field); the client keeps the last locale across reloads
+  (localStorage) while the server stays the authority. Bench-verified TC-003
+  matrix + flash budget 2026-10-10 (#37): EN+DE strings 3607 B, RAM +8 B
+- `HomingModel` (`lib/FirmwareCore/src/Homing.h`, M3 T002, #108): pure
+  staged homing FSM (BackOff -> SeekDown -> FinalSeek; SeekUp -> BackOffDown
+  for `home top`, which never sets a datum), injected time + debounced
+  endstop booleans, clearance-consumed guard, stuck-switch guard, per-phase
+  seek timeout. Host-tested RED-first (19 cases); not yet wired into `src/`
+- Locale drift gate (M2, #89, #113): host test rejects DE-copied-from-EN
+  outside an explicit locale-invariant allowlist;
+  `scripts/check_locale_coverage.py` (CI `test` job) flags stale `Msg` rows
+  and raw user-facing literals in `Serial.print`/`jsonMessage` call sites
+- `src/Text.h` single-source message table (M2 #88, #107): enum + EN/DE
+  columns generated from ONE `MSG_X_LIST` X-macro, pairing enforced by
+  construction (GCC cannot use C++20 designated initializers on arrays)
 - `BreakDetector` (`lib/FirmwareCore/src/BreakDetect.h`, M3 T001, #104): pure
   arm/peak/drop break detector - arms strictly above the arm threshold, tracks
   the running peak only while armed, latches `Broken` below

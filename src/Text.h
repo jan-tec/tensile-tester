@@ -160,6 +160,18 @@
   MSG(FaultMotorNoFeedback, \
       "Motor feedback cannot be verified (no sense wiring).", \
       "Motor-Rueckmeldung nicht pruefbar (keine Fuehlerleitung).") \
+  MSG(FaultEndstopSeekTimeout, \
+      "Homing seek timed out - endstop not reached.", \
+      "Referenzfahrt-Timeout - Endschalter nicht erreicht.") \
+  MSG(FaultEndstopInstantTrigger, \
+      "Endstop already triggered at seek start (pressed or broken wire?).", \
+      "Endschalter bei Suchstart bereits ausgeloest (betaetigt oder Drahtbruch?).") \
+  MSG(FaultEndstopStuckSwitch, \
+      "Endstop re-triggered too early (stuck switch?).", \
+      "Endschalter loeste zu frueh erneut aus (Schalter klemmt?).") \
+  MSG(FaultEndstopPressedOrBroken, \
+      "Endstop pressed or wire broken - jog off the switch and re-run.", \
+      "Endschalter betaetigt oder Drahtbruch - vom Schalter wegfahren und neu starten.") \
   MSG(FaultUnknown, "Unknown fault.", "Unbekannter Fehler.") \
   /* CLI generic */ \
   MSG(EmptyCommand, "Empty command.", "Leeres Kommando.") \
@@ -310,6 +322,14 @@ inline Msg msgForFault(ErrorCode code) {
       return Msg::FaultHx711NoVariation;
     case ErrorCode::MotorNoFeedback:
       return Msg::FaultMotorNoFeedback;
+    case ErrorCode::EndstopSeekTimeout:
+      return Msg::FaultEndstopSeekTimeout;
+    case ErrorCode::EndstopInstantTrigger:
+      return Msg::FaultEndstopInstantTrigger;
+    case ErrorCode::EndstopStuckSwitch:
+      return Msg::FaultEndstopStuckSwitch;
+    case ErrorCode::EndstopPressedOrBroken:
+      return Msg::FaultEndstopPressedOrBroken;
     default:
       return Msg::FaultUnknown;
   }

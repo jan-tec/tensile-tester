@@ -79,6 +79,20 @@ void test_msg_for_fault_maps_every_error_code(void) {
   TEST_ASSERT_EQUAL_INT(
       static_cast<int>(Msg::FaultMotorNoFeedback),
       static_cast<int>(msgForFault(ErrorCode::MotorNoFeedback)));
+  // M3 endstop block (0x0501-0x0504, bench-found 2026-10-11: an endstop
+  // fault showed "Unknown fault" in the Error-state reply).
+  TEST_ASSERT_EQUAL_INT(
+      static_cast<int>(Msg::FaultEndstopSeekTimeout),
+      static_cast<int>(msgForFault(ErrorCode::EndstopSeekTimeout)));
+  TEST_ASSERT_EQUAL_INT(
+      static_cast<int>(Msg::FaultEndstopInstantTrigger),
+      static_cast<int>(msgForFault(ErrorCode::EndstopInstantTrigger)));
+  TEST_ASSERT_EQUAL_INT(
+      static_cast<int>(Msg::FaultEndstopStuckSwitch),
+      static_cast<int>(msgForFault(ErrorCode::EndstopStuckSwitch)));
+  TEST_ASSERT_EQUAL_INT(
+      static_cast<int>(Msg::FaultEndstopPressedOrBroken),
+      static_cast<int>(msgForFault(ErrorCode::EndstopPressedOrBroken)));
   TEST_ASSERT_EQUAL_INT(static_cast<int>(Msg::FaultUnknown),
                         static_cast<int>(msgForFault(static_cast<ErrorCode>(0xBEEF))));
 }

@@ -120,9 +120,11 @@ bool Commands::execute(String command, String &response) {
   if (model.state() == DeviceState::Error &&
       isMotionCommand(command.c_str())) {
     // M2-T004 (FR-007): the fault code carries its localized detail
-    // message (e.g. POWER_LOW -> "Supply voltage too low").
+    // message (e.g. POWER_LOW -> "Supply voltage too low"). The prefix
+    // rows already end in "0x" - bench-found double prefix fixed here:
+    // only the padded hex digits are appended (code 0x0501, #97 grammar).
     char buffer[160];
-    snprintf(buffer, sizeof(buffer), "%s0x%04X%s %s", msg(Msg::FaultStatePrefix),
+    snprintf(buffer, sizeof(buffer), "%s%04X%s %s", msg(Msg::FaultStatePrefix),
              model.faultCode(), msg(Msg::FaultStateSuffix),
              msg(msgForFault(static_cast<ErrorCode>(model.faultCode()))));
     response = String(buffer);

@@ -15,6 +15,7 @@ extern void runHealthEvalTests();
 extern void runErrorCodeTests();
 extern void runLocaleTests();
 extern void runTextTableTests();
+extern void runConfigTests();
 extern void runUiHtmlTests();
 
 void setUp(void) {}
@@ -32,6 +33,7 @@ int main(void) {
   runErrorCodeTests();
   runLocaleTests();
   runTextTableTests();
+  runConfigTests();
   runUiHtmlTests();
   return UNITY_END();
 }

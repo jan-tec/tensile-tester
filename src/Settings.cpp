@@ -40,3 +40,17 @@ void Settings::saveCalibration(float factor) {
   preferences_.putBool(kPrefCalibrationValid, true);
   preferences_.end();
 }
+
+Locale Settings::loadLocale() {
+  preferences_.begin(kNamespace, true);
+  const String stored = preferences_.getString(kPrefLocale, "");
+  preferences_.end();
+  // Missing key ("") and unknown values resolve to En (FR-002 default).
+  return localeFromName(stored.c_str());
+}
+
+void Settings::saveLocale(Locale locale) {
+  preferences_.begin(kNamespace, false);
+  preferences_.putString(kPrefLocale, localeName(locale));
+  preferences_.end();
+}

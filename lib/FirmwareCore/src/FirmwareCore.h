@@ -127,6 +127,18 @@ Locale localeFromName(const char* name);
 // irrelevant: always 0.
 int resolveMsgTable(Locale locale, bool deEntryExists);
 
+// Canonical name of a locale ("en" | "de"), used for the NVS value and the
+// `lang` reply (M2 FR-002/FR-003). Round-trips through localeFromName().
+const char* localeName(Locale locale);
+
+// Parse "<prefix> <en|de>" (the `lang` command). Same dispatch grammar as
+// parseCommandValue: word boundary required (#42), locale token exact and
+// case-sensitive like command names (#41), surrounding whitespace tolerated,
+// nothing after the token. Bare prefix -> NotACommand (the unknown-command
+// path prints help); any other token -> InvalidValue.
+ParseResult parseLocaleAfterCommand(const char* command, const char* prefix,
+                                    Locale* locale);
+
 // ---------------------------------------------------------------------------
 // Device state machine (pure). M1 FR-001: Booting -> SelfTest -> Idle |
 // Error. No hardware here; the caller (Diagnostics) disables the motor

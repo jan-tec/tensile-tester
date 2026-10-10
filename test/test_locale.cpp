@@ -53,6 +53,17 @@ void test_resolve_en_with_de_entry_still_en(void) {
   TEST_ASSERT_EQUAL(0, resolveMsgTable(Locale::En, true));
 }
 
+// Settings persists the locale under this exact NVS name (M2-T003);
+// localeFromName(localeName(x)) must round-trip.
+void test_locale_name_round_trip(void) {
+  TEST_ASSERT_EQUAL_STRING("en", localeName(Locale::En));
+  TEST_ASSERT_EQUAL_STRING("de", localeName(Locale::De));
+  TEST_ASSERT_EQUAL(static_cast<int>(Locale::En),
+                    static_cast<int>(localeFromName(localeName(Locale::En))));
+  TEST_ASSERT_EQUAL(static_cast<int>(Locale::De),
+                    static_cast<int>(localeFromName(localeName(Locale::De))));
+}
+
 void runLocaleTests() {
   RUN_TEST(test_locale_from_name_en);
   RUN_TEST(test_locale_from_name_de);
@@ -63,4 +74,5 @@ void runLocaleTests() {
   RUN_TEST(test_resolve_de_missing_entry_falls_back_to_en);
   RUN_TEST(test_resolve_en_stays_en_even_without_de_entry);
   RUN_TEST(test_resolve_en_with_de_entry_still_en);
+  RUN_TEST(test_locale_name_round_trip);
 }

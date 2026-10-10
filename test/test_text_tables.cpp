@@ -45,9 +45,21 @@ void test_table_covers_msg_exactly(void) {
                            sizeof(kMsgRows) / sizeof(kMsgRows[0]));
 }
 
-// Pairing spot-check: rows carry distinct idiomatic text per locale, so an
-// id/string mispair cannot hide behind equal generic entries. Anchored on
-// substrings, not full strings, so normal re-translation does not break it.
+// #88: the row table pairs strings with ids by construction (shared X-macro
+// list). The locale layer (M2-T003): msg() resolves through the current text
+// locale, default EN; switching is explicit and reversible.
+void test_msg_defaults_to_en(void) {
+  setTextLocale(Locale::En);
+  TEST_ASSERT_EQUAL_STRING(msgEn(Msg::BootBanner), msg(Msg::BootBanner));
+}
+
+void test_msg_de_locale_serves_de(void) {
+  setTextLocale(Locale::De);
+  TEST_ASSERT_EQUAL_STRING(msgDe(Msg::BootBanner), msg(Msg::BootBanner));
+  setTextLocale(Locale::En);
+  TEST_ASSERT_EQUAL_STRING(msgEn(Msg::BootBanner), msg(Msg::BootBanner));
+}
+
 void test_pairing_anchors(void) {
   TEST_ASSERT_NOT_NULL(strstr(msgEn(Msg::BootBanner), "test machine"));
   TEST_ASSERT_NOT_NULL(strstr(msgDe(Msg::BootBanner), "Pruefmaschinen"));

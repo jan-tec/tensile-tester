@@ -19,23 +19,29 @@
 #include "Motion.h"
 
 class Diagnostics;
+class Settings;
 
 class Commands {
  public:
-  Commands(Motion &motion, LoadCell &loadcell, Diagnostics &diagnostics)
-      : motion_(motion), loadcell_(loadcell), diagnostics_(diagnostics) {}
+  Commands(Settings &settings, Motion &motion, LoadCell &loadcell,
+           Diagnostics &diagnostics)
+      : settings_(settings), motion_(motion), loadcell_(loadcell),
+        diagnostics_(diagnostics) {}
 
   // Runs one command (trimmed or untrimmed) and fills response with the
-  // German status text. Returns true on success. The serial caller
-  // prints helpText() on false; the Web API maps false to HTTP 400.
+  // localized status text (M2: all replies resolve through Text's msg();
+  // the locale is switched with `lang <en|de>`). Returns true on success.
+  // The serial caller prints helpText() on false; the Web API maps false
+  // to HTTP 400.
   bool execute(String command, String &response);
 
   // Serial status line, shared by the "pos" command and the periodic
   // status output in the loop task.
   void printPosition();
 
-  // Help line printed by the serial path after an unknown command.
-  static const char *helpText();
+  // Help line printed by the serial path after an unknown command
+  // (localized pair from Text, M2-T003).
+  static String helpText();
 
   // Jog travel for "jog up" / "jog down" (full spindle stroke); the jog
   // commands target current position +/- this distance.
@@ -50,6 +56,7 @@ class Commands {
   // present but not a number, distinct from the per-command "> 0" errors.
   bool reportInvalidValue(String &response) const;
 
+  Settings &settings_;
   Motion &motion_;
   LoadCell &loadcell_;
   Diagnostics &diagnostics_;

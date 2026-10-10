@@ -328,3 +328,44 @@ int resolveMsgTable(Locale locale, bool deEntryExists) {
   }
   return 0;
 }
+
+const char* localeName(Locale locale) {
+  return locale == Locale::De ? "de" : "en";
+}
+
+ParseResult parseLocaleAfterCommand(const char* command, const char* prefix,
+                                    Locale* locale) {
+  if (command == nullptr || command[0] == '\0' ||
+      !startsWithCommandPrefix(command, prefix)) {
+    return ParseResult::NotACommand;
+  }
+  const char* rest = command + strlen(prefix);
+  while (*rest != '\0' && strchr(kCommandWhitespace, *rest) != nullptr) {
+    rest++;
+  }
+  if (*rest == '\0') {
+    // Bare "lang": same fallthrough as "rpm" without a number - the
+    // unknown-command path prints help, showing the grammar.
+    return ParseResult::NotACommand;
+  }
+  const char* tokenEnd = rest;
+  while (*tokenEnd != '\0' && strchr(kCommandWhitespace, *tokenEnd) == nullptr) {
+    tokenEnd++;
+  }
+  const size_t tokenLen = static_cast<size_t>(tokenEnd - rest);
+  const bool isEn = tokenLen == 2 && strncmp(rest, "en", 2) == 0;
+  const bool isDe = tokenLen == 2 && strncmp(rest, "de", 2) == 0;
+  const char* afterToken = tokenEnd;
+  while (*afterToken != '\0' &&
+         strchr(kCommandWhitespace, *afterToken) != nullptr) {
+    afterToken++;
+  }
+  if (*afterToken != '\0') {
+    return ParseResult::InvalidValue;  // trailing junk after the token
+  }
+  if (!isEn && !isDe) {
+    return ParseResult::InvalidValue;  // unknown or wrong-case locale name
+  }
+  *locale = isDe ? Locale::De : Locale::En;
+  return ParseResult::Ok;
+}

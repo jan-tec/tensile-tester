@@ -1,22 +1,24 @@
 #include "Commands.h"
 
 #include "Diagnostics.h"
+#include "Settings.h"
+#include "Text.h"
 
-const char *Commands::helpText() {
-  return "Verfuegbare Kommandos: en, off, zero, tare, force, pos, stop, "
-         "rpm, acc, feed, move, turn, jog up, jog down, cal_zero, cal_apply";
+String Commands::helpText() {
+  return String(msg(Msg::HelpCommandsPrefix)) + msg(Msg::HelpCommandsSuffix);
 }
 
 void Commands::printPosition() {
-  Serial.print("Position [Schritte]: ");
+  Serial.print(msg(Msg::PositionSteps));
   Serial.print(motion_.steps());
-  Serial.print(" | Weg [mm]: ");
+  Serial.print(msg(Msg::StatusTravelLabel));
   Serial.print(motion_.positionMm(), 3);
-  Serial.print(" | Kraft [N]: ");
+  Serial.print(msg(Msg::StatusForceLabel));
   if (loadcell_.isReady()) {
     Serial.println(loadcell_.forceNewton(), 2);
   } else {
-    Serial.println("n/a");  // HX711 not ready: no force reading (M1 T005)
+    // HX711 not ready: no force reading (M1 T005)
+    Serial.println(msg(Msg::NotAvailable));
   }
 }
 
@@ -30,14 +32,14 @@ ParseResult Commands::parseValueAfterCommand(const String &command,
 }
 
 bool Commands::reportInvalidValue(String &response) const {
-  response = "Ungueltiger Wert.";
+  response = msg(Msg::InvalidValue);
   return false;
 }
 
 bool Commands::execute(String command, String &response) {
   command.trim();
   if (command.isEmpty()) {
-    response = "Leeres Kommando.";
+    response = msg(Msg::EmptyCommand);
     return false;
   }
 
@@ -47,47 +49,59 @@ bool Commands::execute(String command, String &response) {
   if (model.state() == DeviceState::Error &&
       isMotionCommand(command.c_str())) {
     char buffer[96];
-    snprintf(buffer, sizeof(buffer),
-             "Fehlerzustand (Code 0x%04X): Motorkommandos gesperrt, "
-             "Reboot noetig.",
-             model.faultCode());
+    snprintf(buffer, sizeof(buffer), "%s0x%04X%s", msg(Msg::FaultStatePrefix),
+             model.faultCode(), msg(Msg::FaultStateSuffix));
     response = String(buffer);
     return false;
+  }
+
+  // M2-T003 (FR-003): locale switch, usable in every state (not motion).
+  Locale locale = textLocale();
+  const ParseResult langResult =
+      parseLocaleAfterCommand(command.c_str(), "lang", &locale);
+  if (langResult == ParseResult::InvalidValue) {
+    return reportInvalidValue(response);
+  }
+  if (langResult == ParseResult::Ok) {
+    setTextLocale(locale);
+    settings_.saveLocale(locale);
+    response = String(msg(Msg::LangSet)) + localeName(locale);
+    return true;
   }
 
   const Command named = commandFromName(command.c_str());
 
   if (named == Command::Enable) {
     motion_.enable();
-    response = "Beide Treiber aktiviert.";
+    response = msg(Msg::DriversEnabled);
     return true;
   }
 
   if (named == Command::Disable) {
     motion_.disable();
-    response = "Beide Treiber deaktiviert.";
+    response = msg(Msg::DriversDisabled);
     return true;
   }
 
   if (named == Command::Zero) {
     motion_.zero();
-    response = "Achsposition auf 0 gesetzt.";
+    response = msg(Msg::OriginZeroed);
     return true;
   }
 
   if (named == Command::Tare) {
     loadcell_.tare();
-    response =
-        loadcell_.isReady() ? "Waegezelle tariert." : "HX711 nicht bereit.";
+    response = loadcell_.isReady() ? msg(Msg::LoadCellTared)
+                                   : msg(Msg::Hx711NotReady);
     return loadcell_.isReady();
   }
 
   if (named == Command::CalZero) {
     if (!loadcell_.captureZeroPoint()) {
-      response = "HX711 nicht bereit.";
+      response = msg(Msg::Hx711NotReady);
       return false;
     }
-    response = "Nullpunkt erfasst. Jetzt bekanntes Gewicht anhaengen, Grammwert eingeben und Schritt 2 ausfuehren.";
+    response = msg(Msg::CalZeroCaptured);
     return true;
   }
 
@@ -101,51 +115,50 @@ bool Commands::execute(String command, String &response) {
   if (calApplyResult == ParseResult::Ok) {
     switch (loadcell_.calibrateWithMass(value)) {
       case LoadCell::CalError::NotReady:
-        response = "HX711 nicht bereit.";
+        response = msg(Msg::Hx711NotReady);
         return false;
       case LoadCell::CalError::ZeroNotCaptured:
-        response =
-            "Bitte zuerst Schritt 1 mit unbelasteter Waegezelle ausfuehren.";
+        response = msg(Msg::CalStep1First);
         return false;
       case LoadCell::CalError::InvalidMass:
-        response = "Kalibriergewicht muss groesser als 0 g sein.";
+        response = msg(Msg::CalWeightMustBePositive);
         return false;
       case LoadCell::CalError::ReadFailed:
-        response = "Kalibrierwert konnte nicht gelesen werden.";
+        response = msg(Msg::CalValueUnreadable);
         return false;
       case LoadCell::CalError::ZeroFactor:
-        response = "Kalibrierung fehlgeschlagen: Faktor ist 0.";
+        response = msg(Msg::CalFailedZeroFactor);
         return false;
       case LoadCell::CalError::NegativeFactor:
-        response =
-            "Kalibrierung fehlgeschlagen: Faktor negativ (Offset drift?).";
+        response = msg(Msg::CalFailedNegativeFactor);
         return false;
       case LoadCell::CalError::None:
         break;
     }
-    response = "Kalibrierung gespeichert. Neuer Faktor: " +
+    response = String(msg(Msg::CalSaved)) +
                String(loadcell_.calibrationFactor(), 6);
     return true;
   }
 
   if (named == Command::Force) {
     if (loadcell_.isReady()) {
-      response = "Kraft aktuell: " + String(loadcell_.forceNewton(), 2) + " N.";
+      response = String(msg(Msg::ForceCurrent)) +
+                 String(loadcell_.forceNewton(), 2) + msg(Msg::NewtonSuffix);
     } else {
-      response = "Kraft: n/a (HX711 nicht bereit).";
+      response = msg(Msg::ForceUnavailable);
     }
     return true;
   }
 
   if (named == Command::Stop) {
     motion_.stop();
-    response = "Stopp angefordert.";
+    response = msg(Msg::StopRequested);
     return true;
   }
 
   if (named == Command::Pos) {
     printPosition();
-    response = "Position im Serial Monitor ausgegeben.";
+    response = msg(Msg::PositionPrinted);
     return true;
   }
 
@@ -155,13 +168,13 @@ bool Commands::execute(String command, String &response) {
   }
   if (rpmResult == ParseResult::Ok) {
     if (value <= 0.0f) {
-      response = "RPM muss groesser als 0 sein.";
+      response = msg(Msg::RpmMustBePositive);
       return false;
     }
 
     motion_.setOutputRpm(value);
-    response = "Drehzahl gesetzt auf " + String(motion_.outputRpm(), 2) +
-               " U/min.";
+    response = String(msg(Msg::RpmSet)) + String(motion_.outputRpm(), 2) +
+               msg(Msg::RpmSuffix);
     return true;
   }
 
@@ -171,13 +184,13 @@ bool Commands::execute(String command, String &response) {
   }
   if (accResult == ParseResult::Ok) {
     if (value <= 0.0f) {
-      response = "ACC muss groesser als 0 sein.";
+      response = msg(Msg::AccelMustBePositive);
       return false;
     }
 
     motion_.setAccelRpmPerS(value);
-    response = "Beschleunigung gesetzt auf " +
-               String(motion_.accelRpmPerS(), 2) + " U/min/s.";
+    response = String(msg(Msg::AccelSet)) + String(motion_.accelRpmPerS(), 2) +
+               msg(Msg::AccelSuffix);
     return true;
   }
 
@@ -188,27 +201,28 @@ bool Commands::execute(String command, String &response) {
   }
   if (feedResult == ParseResult::Ok) {
     if (value <= 0.0f) {
-      response = "Vorschub muss groesser als 0 sein.";
+      response = msg(Msg::FeedMustBePositive);
       return false;
     }
 
     const float clampedFeed = clampFeedMmPerMin(value);
     motion_.setOutputRpm(feedMmPerMinToRpm(clampedFeed));
-    response = "Vorschub gesetzt auf " + String(clampedFeed, 2) + " mm/min.";
+    response = String(msg(Msg::FeedSet)) + String(clampedFeed, 2) +
+               msg(Msg::MillimetrePerMinuteSuffix);
     return true;
   }
 
   if (named == Command::JogUp) {
     motion_.startMoveToSteps(
         static_cast<long>(motion_.steps() + spindleMmToSteps(kJogTravelMm)));
-    response = "Jog nach oben gestartet.";
+    response = msg(Msg::JogUpStarted);
     return true;
   }
 
   if (named == Command::JogDown) {
     motion_.startMoveToSteps(
         static_cast<long>(motion_.steps() - spindleMmToSteps(kJogTravelMm)));
-    response = "Jog nach unten gestartet.";
+    response = msg(Msg::JogDownStarted);
     return true;
   }
 
@@ -219,7 +233,8 @@ bool Commands::execute(String command, String &response) {
   if (moveResult == ParseResult::Ok) {
     motion_.startMoveToSteps(
         static_cast<long>(motion_.steps() + spindleMmToSteps(value)));
-    response = "Relativbewegung gestartet: " + String(value, 3) + " mm.";
+    response = String(msg(Msg::RelativeMoveStarted)) + String(value, 3) +
+               msg(Msg::MillimetreSuffix);
     return true;
   }
 
@@ -230,11 +245,11 @@ bool Commands::execute(String command, String &response) {
   if (turnResult == ParseResult::Ok) {
     motion_.startMoveToSteps(
         static_cast<long>(motion_.steps() + outputTurnsToSteps(value)));
-    response = "Relativbewegung gestartet: " + String(value, 3) +
-               " Umdrehungen.";
+    response = String(msg(Msg::RelativeMoveStarted)) + String(value, 3) +
+               msg(Msg::RevolutionsSuffix);
     return true;
   }
 
-  response = "Unbekanntes Kommando.";
+  response = msg(Msg::UnknownCommand);
   return false;
 }

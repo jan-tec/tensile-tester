@@ -8,6 +8,8 @@
 #include <Arduino.h>
 #include <Preferences.h>
 
+#include <FirmwareCore.h>  // Locale
+
 class Settings {
  public:
   // Single source of truth for the default calibration factor (1 N per
@@ -31,10 +33,16 @@ class Settings {
   // Write the calibration to NVS and mark it valid.
   void saveCalibration(float factor);
 
+  // UI locale (M2 FR-002, key "locale"). Missing/unknown stored value -> En
+  // (localeFromName's factory-fresh default).
+  Locale loadLocale();
+  void saveLocale(Locale locale);
+
  private:
   static constexpr const char *kNamespace = "testmachine";
   static constexpr const char *kPrefCalibrationValid = "lc_valid";
   static constexpr const char *kPrefCalibrationFactor = "lc_factor";
+  static constexpr const char *kPrefLocale = "locale";
 
   Preferences preferences_;
 };

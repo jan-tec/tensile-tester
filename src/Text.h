@@ -27,6 +27,8 @@
 #include <cstddef>
 #include <cstdint>
 
+#include <FirmwareCore.h>  // Locale, resolveMsgTable (pure)
+
 #ifndef PROGMEM
 #define PROGMEM
 #endif
@@ -148,12 +150,15 @@
   MSG(EmptyCommand, "Empty command.", "Leeres Kommando.") \
   MSG(UnknownCommand, "Unknown command.", "Unbekanntes Kommando.") \
   MSG(InvalidValue, "Invalid value.", "Ungueltiger Wert.") \
+  MSG(LangSet, "Language set to ", "Sprache eingestellt auf ") \
   MSG(HelpCommandsPrefix, \
       "Available commands: en, off, zero, tare, force, pos, stop, ", \
       "Verfuegbare Kommandos: en, off, zero, tare, force, pos, stop, ") \
   MSG(HelpCommandsSuffix, \
-      "rpm, acc, feed, move, turn, jog up, jog down, cal_zero, cal_apply", \
-      "rpm, acc, feed, move, turn, jog up, jog down, cal_zero, cal_apply")  /* command names are locale-invariant */
+      "rpm, acc, feed, move, turn, jog up, jog down, cal_zero, cal_apply, " \
+      "lang", \
+      "rpm, acc, feed, move, turn, jog up, jog down, cal_zero, cal_apply, " \
+      "lang")  /* command names are locale-invariant */
 
 
 #define MSG_ENUM(id, en, de) id,
@@ -189,6 +194,30 @@ static_assert(sizeof(kMsgRows) / sizeof(kMsgRows[0]) ==
 // relocation, no extra RAM (NFR).
 inline const char *msgEn(Msg id) { return kMsgRows[static_cast<int>(id)].en; }
 inline const char *msgDe(Msg id) { return kMsgRows[static_cast<int>(id)].de; }
+
+// Current UI locale (M2 FR-002/FR-003). Static storage, factory default EN;
+// App seeds it from Settings at boot, the `lang` command (serial + Web)
+// switches it at runtime. All command handling runs on the Arduino loop
+// task, so no synchronization is needed for this single writer.
+namespace text_detail {
+inline Locale &currentTextLocale() {
+  static Locale locale = Locale::En;
+  return locale;
+}
+}  // namespace text_detail
+
+inline void setTextLocale(Locale locale) { text_detail::currentTextLocale() = locale; }
+inline Locale textLocale() { return text_detail::currentTextLocale(); }
+
+// Locale-aware user-facing text (plan D2/FR-004): call sites select an id,
+// they never carry literals (SC-003). An empty DE entry falls back to EN
+// (resolveMsgTable, TC-001); TC-002 pins every row non-empty, so the
+// fallback only fires on deliberate half-translation during development.
+inline const char *msg(Msg id) {
+  const MsgPair &row = kMsgRows[static_cast<int>(id)];
+  const bool deEntry = row.de != nullptr && row.de[0] != '\0';
+  return resolveMsgTable(textLocale(), deEntry) == 1 ? row.de : row.en;
+}
 
 // DE rows are the ASCII transcription (FR-006: ae/oe/ue/ss) of the German
 // strings in use. Web DE with native umlauts (FR-005) is owned by the JS

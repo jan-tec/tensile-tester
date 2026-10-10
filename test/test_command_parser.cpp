@@ -183,6 +183,71 @@ void test_is_motion_command_requires_word_boundary(void) {
   TEST_ASSERT_FALSE(isMotionCommand("turnkey"));
 }
 
+// --- parseLocaleAfterCommand (M2-T003, `lang <en|de>`) ----------------------
+// Same dispatch grammar as parseCommandValue: word boundary required (#42),
+// locale names exact and case-sensitive like command names (#41), the whole
+// remainder after the prefix must be consumed.
+
+void test_parse_locale_after_command_en_de(void) {
+  Locale locale = Locale::En;
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(ParseResult::Ok),
+                        static_cast<int>(parseLocaleAfterCommand("lang en", "lang", &locale)));
+  TEST_ASSERT_EQUAL(static_cast<int>(Locale::En), static_cast<int>(locale));
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(ParseResult::Ok),
+                        static_cast<int>(parseLocaleAfterCommand("lang de", "lang", &locale)));
+  TEST_ASSERT_EQUAL(static_cast<int>(Locale::De), static_cast<int>(locale));
+}
+
+void test_parse_locale_after_command_trims_whitespace(void) {
+  Locale locale = Locale::En;
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(ParseResult::Ok),
+                        static_cast<int>(parseLocaleAfterCommand("lang   de  ", "lang", &locale)));
+  TEST_ASSERT_EQUAL(static_cast<int>(Locale::De), static_cast<int>(locale));
+}
+
+void test_parse_locale_after_command_bare_prefix_is_not_a_command(void) {
+  // Mirrors `rpm` without a number: falls through to the unknown-command
+  // path, which prints help - the operator sees the grammar.
+  Locale locale = Locale::De;
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(ParseResult::NotACommand),
+                        static_cast<int>(parseLocaleAfterCommand("lang", "lang", &locale)));
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(ParseResult::NotACommand),
+                        static_cast<int>(parseLocaleAfterCommand("lang   ", "lang", &locale)));
+  TEST_ASSERT_EQUAL(static_cast<int>(Locale::De), static_cast<int>(locale));
+}
+
+void test_parse_locale_after_command_unknown_locale_is_invalid(void) {
+  Locale locale = Locale::En;
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(ParseResult::InvalidValue),
+                        static_cast<int>(parseLocaleAfterCommand("lang fr", "lang", &locale)));
+  // Case-sensitive like every command name (NQP #41 pin).
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(ParseResult::InvalidValue),
+                        static_cast<int>(parseLocaleAfterCommand("lang DE", "lang", &locale)));
+  // Trailing junk: the entire remainder must be the locale token.
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(ParseResult::InvalidValue),
+                        static_cast<int>(parseLocaleAfterCommand("lang de x", "lang", &locale)));
+}
+
+void test_parse_locale_after_command_prefix_mismatch(void) {
+  Locale locale = Locale::En;
+  // Word boundary (#42 pin): "langx" is not "lang".
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(ParseResult::NotACommand),
+                        static_cast<int>(parseLocaleAfterCommand("langx de", "lang", &locale)));
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(ParseResult::NotACommand),
+                        static_cast<int>(parseLocaleAfterCommand("bogus en", "lang", &locale)));
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(ParseResult::NotACommand),
+                        static_cast<int>(parseLocaleAfterCommand("", "lang", &locale)));
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(ParseResult::NotACommand),
+                        static_cast<int>(parseLocaleAfterCommand(nullptr, "lang", &locale)));
+}
+
+void test_lang_is_not_a_motion_command(void) {
+  // The locale must stay switchable in the Error state (M1 FR-009 rejects
+  // motion commands only).
+  TEST_ASSERT_FALSE(isMotionCommand("lang en"));
+  TEST_ASSERT_FALSE(isMotionCommand("lang de"));
+}
+
 void runCommandParserTests() {
   RUN_TEST(test_command_from_name_exact);
   RUN_TEST(test_command_from_name_trims_whitespace);
@@ -200,4 +265,10 @@ void runCommandParserTests() {
   RUN_TEST(test_is_motion_command_prefix);
   RUN_TEST(test_is_motion_command_rejects_non_motion);
   RUN_TEST(test_is_motion_command_requires_word_boundary);
+  RUN_TEST(test_parse_locale_after_command_en_de);
+  RUN_TEST(test_parse_locale_after_command_trims_whitespace);
+  RUN_TEST(test_parse_locale_after_command_bare_prefix_is_not_a_command);
+  RUN_TEST(test_parse_locale_after_command_unknown_locale_is_invalid);
+  RUN_TEST(test_parse_locale_after_command_prefix_mismatch);
+  RUN_TEST(test_lang_is_not_a_motion_command);
 }

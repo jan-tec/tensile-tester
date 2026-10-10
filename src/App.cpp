@@ -1,14 +1,20 @@
 #include "App.h"
 
+#include "Text.h"
+
 void App::begin() {
   Serial.begin(115200);
 
   motion_.begin();
 
+  // M2 FR-002: the stored locale (NVS, default EN) decides all CLI text
+  // before the first line is printed.
+  setTextLocale(settings_.loadLocale());
+
   delay(500);
   Serial.println();
-  Serial.println("ESP32 Pruefmaschinen-Steuerung gestartet.");
-  Serial.println("Zwei Motoren laufen synchron ueber dieselben STEP/DIR-Signale (EN1/EN2 gemeinsam geschaltet).");
+  Serial.println(msg(Msg::BootBanner));
+  Serial.println(msg(Msg::MotorsSyncNote));
 
   loadcell_.begin(settings_);
   powerSense_.begin();

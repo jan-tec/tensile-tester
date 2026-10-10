@@ -1,4 +1,4 @@
-// Command policy (M0-T006).
+// Command policy (M0-T006; M3-T012: test-cycle command surface).
 //
 // Owns the executeCommand() policy that previously lived inline in
 // main.cpp: dispatch, validation, German response text, and the
@@ -10,6 +10,12 @@
 // adapter. The quirk tracked in #41 (case-sensitive names) is preserved;
 // #42 (word boundary) and #43 (garbage value -> 0.0 / truncated token)
 // are fixed in their own PRs per the No-Quirk Policy.
+//
+// M3 (T012): home/home top/test route into TestRunner (D11 exclusivity,
+// D15 Error rules); `stop` routes to the runner first; testspeed/
+// testarm/testdrop persist through Settings; `data` streams the CSV in
+// loop-tick chunks (D8) with the D14 status-line suppression riding on
+// TestRunner::dumpInProgress().
 #pragma once
 
 #include <Arduino.h>
@@ -20,13 +26,17 @@
 
 class Diagnostics;
 class Settings;
+class TestRunner;
 
 class Commands {
  public:
   Commands(Settings &settings, Motion &motion, LoadCell &loadcell,
-           Diagnostics &diagnostics)
-      : settings_(settings), motion_(motion), loadcell_(loadcell),
-        diagnostics_(diagnostics) {}
+           Diagnostics &diagnostics, TestRunner &testRunner)
+      : settings_(settings),
+        motion_(motion),
+        loadcell_(loadcell),
+        diagnostics_(diagnostics),
+        testRunner_(testRunner) {}
 
   // Runs one command (trimmed or untrimmed) and fills response with the
   // localized status text (M2: all replies resolve through Text's msg();
@@ -36,8 +46,14 @@ class Commands {
   bool execute(String command, String &response);
 
   // Serial status line, shared by the "pos" command and the periodic
-  // status output in the loop task.
+  // status output in the loop task. Travel shows n/a while no datum
+  // exists (M3 FR-006).
   void printPosition();
+
+  // CSV dump pump (M3 D8): call from App::loop(); writes at most one
+  // kCsvChunkBytes chunk per tick, only when the serial TX buffer can
+  // take it whole. No-op unless a `data` command started a dump.
+  void pollDump();
 
   // Help line printed by the serial path after an unknown command
   // (localized pair from Text, M2-T003).
@@ -47,17 +63,32 @@ class Commands {
   // commands target current position +/- this distance.
   static constexpr float kJogTravelMm = 1000.0f;
 
+  // One CSV chunk per loop tick, max (D8; NFR: the dump never blocks the
+  // motor task). 128 B fits the default UART TX buffer in one write.
+  static constexpr size_t kCsvChunkBytes = 128;
+
  private:
   // String adapter around the T002 parser (FirmwareCore::parseCommandValue).
   ParseResult parseValueAfterCommand(const String &command, const char *prefix,
                                      float &value) const;
 
+  // String adapter around parseCommandIndex (`data <from>`).
+  ParseResult parseIndexAfterCommand(const String &command, const char *prefix,
+                                     uint32_t &index) const;
+
   // Shared response for ParseResult::InvalidValue (NQP #43): the token was
   // present but not a number, distinct from the per-command "> 0" errors.
   bool reportInvalidValue(String &response) const;
+
+  // Applies one test-config field change: rejects while a run is active
+  // (applyConfig resets the homing FSM), clamps through the runner,
+  // persists, replies with the EFFECTIVE (clamped) value + suffix.
+  bool applyTestConfigValue(float value, String &response,
+                            float TestConfig::*field, const char *suffix);
 
   Settings &settings_;
   Motion &motion_;
   LoadCell &loadcell_;
   Diagnostics &diagnostics_;
+  TestRunner &testRunner_;
 };

@@ -9,6 +9,7 @@
 #include <Preferences.h>
 
 #include <FirmwareCore.h>  // Locale
+#include <TestConfig.h>    // M3 FR-005: test cycle config
 
 class Settings {
  public:
@@ -33,6 +34,14 @@ class Settings {
   // Write the calibration to NVS and mark it valid.
   void saveCalibration(float factor);
 
+  // Test cycle config (M3 FR-005, T012): six operator knobs. Load
+  // applies clampTestConfig() once - the single validation boundary - so
+  // everything downstream (runner, models, replies) may trust the values.
+  // Save writes the fields verbatim; callers pass the already-clamped
+  // runner config.
+  TestConfig loadTestConfig();
+  void saveTestConfig(const TestConfig &config);
+
   // UI locale (M2 FR-002, key "locale"). Missing/unknown stored value -> En
   // (localeFromName's factory-fresh default).
   Locale loadLocale();
@@ -43,6 +52,13 @@ class Settings {
   static constexpr const char *kPrefCalibrationValid = "lc_valid";
   static constexpr const char *kPrefCalibrationFactor = "lc_factor";
   static constexpr const char *kPrefLocale = "locale";
+  // Test config keys (Preferences limit: <= 15 chars).
+  static constexpr const char *kPrefTestSpeed = "test_speed";
+  static constexpr const char *kPrefTestArm = "test_arm";
+  static constexpr const char *kPrefTestDrop = "test_drop";
+  static constexpr const char *kPrefHomeClear = "home_clear";
+  static constexpr const char *kPrefHomeSeek = "home_seek";
+  static constexpr const char *kPrefHomeTimeout = "home_tout";
 
   Preferences preferences_;
 };

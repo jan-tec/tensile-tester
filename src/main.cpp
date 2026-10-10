@@ -25,7 +25,7 @@ PowerSense powerSense;
 Endstops endstops;  // M3-T008: endstop inputs (GPIO 25/26)
 Diagnostics diagnostics;
 TestRunner testRunner(motion, loadcell, endstops, diagnostics);  // M3-T011
-Commands commands(settings, motion, loadcell, diagnostics);
+Commands commands(settings, motion, loadcell, diagnostics, testRunner);  // M3-T012
 SerialCli serialCli(commands);
 WebUi webUi(commands, motion, loadcell, diagnostics);
 App app(settings, motion, loadcell, powerSense, endstops, testRunner,

@@ -101,6 +101,7 @@ class TestRunner {
   // detector's armed-phase peak; displacement is relative to the pull
   // start (spec US2 "displacement mm").
   float peakForceN() const { return detector_.peakForceN(); }
+  uint32_t peakIndex() const { return detector_.peakIndex(); }
   bool breakDetected() const { return breakDetected_; }
   float breakDisplacementMm() const { return breakPositionMm_; }
 
@@ -113,6 +114,9 @@ class TestRunner {
   // nextDumpIndex resets to 0 per run (buffer cleared in startTest).
   const SampleBuffer &samples() const { return buffer_; }
   size_t nextDumpIndex() const { return nextDumpIndex_; }
+  // Dump progress update that KEEPS the dump in flight (D14 suppression
+  // stays active between chunks); endDump() finishes it.
+  void advanceDump(size_t nextIndex) { nextDumpIndex_ = nextIndex; }
   void beginDump() { dumpInProgress_ = true; }  // from nextDumpIndex_
   void beginDump(size_t fromIndex) {  // resume: `data <from-index>`
     nextDumpIndex_ = fromIndex;

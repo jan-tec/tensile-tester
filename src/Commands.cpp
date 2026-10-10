@@ -2,6 +2,7 @@
 
 #include "Diagnostics.h"
 #include "Settings.h"
+#include "TestRunner.h"
 #include "Text.h"
 
 String Commands::helpText() {
@@ -12,13 +13,21 @@ void Commands::printPosition() {
   Serial.print(msg(Msg::PositionSteps));
   Serial.print(motion_.steps());
   Serial.print(msg(Msg::StatusTravelLabel));
-  Serial.print(motion_.positionMm(), 3);
+  if (testRunner_.homed()) {
+    // M3 FR-006: mm are only meaningful upward from the bottom datum.
+    Serial.print(motion_.positionMm(), 3);
+  } else {
+    Serial.print(msg(Msg::NotAvailable));
+  }
   Serial.print(msg(Msg::StatusForceLabel));
   if (loadcell_.isReady()) {
     Serial.println(loadcell_.forceNewton(), 2);
   } else {
     // HX711 not ready: no force reading (M1 T005)
     Serial.println(msg(Msg::NotAvailable));
+  }
+  if (!testRunner_.homed()) {
+    Serial.println(msg(Msg::PositionDatumUnknown));
   }
 }
 
@@ -34,6 +43,68 @@ ParseResult Commands::parseValueAfterCommand(const String &command,
 bool Commands::reportInvalidValue(String &response) const {
   response = msg(Msg::InvalidValue);
   return false;
+}
+
+ParseResult Commands::parseIndexAfterCommand(const String &command,
+                                             const char *prefix,
+                                             uint32_t &index) const {
+  return parseCommandIndex(command.c_str(), prefix, &index);
+}
+
+bool Commands::applyTestConfigValue(float value, String &response,
+                                    float TestConfig::*field,
+                                    const char *suffix) {
+  if (value <= 0.0f) {
+    response = msg(Msg::ValueMustBePositive);
+    return false;
+  }
+  if (diagnostics_.model().state() == DeviceState::Error) {
+    // applyConfig() resets the homing FSM - unlatching its Fault behind
+    // the device Error gate would blur FR-009's recovery-by-reboot rule.
+    response = msg(Msg::ConfigLockedInFault);
+    return false;
+  }
+  if (testRunner_.active()) {
+    // applyConfig() re-parameterises the models (and resets the homing
+    // FSM) - never while a run is in flight (D11).
+    response = msg(Msg::CycleBusy);
+    return false;
+  }
+  TestConfig config = testRunner_.config();
+  config.*field = value;
+  testRunner_.applyConfig(config);
+  settings_.saveTestConfig(testRunner_.config());
+  // Reply with the EFFECTIVE value: clampTestConfig may have adjusted it
+  // (FR-005) and the operator needs to see what is now in force.
+  response = String(testRunner_.config().*field, 2) + suffix;
+  return true;
+}
+
+void Commands::pollDump() {
+  if (!testRunner_.dumpInProgress()) {
+    return;
+  }
+  // D8/NFR: write only what the TX buffer can take in one go; the dump
+  // resumes on the next tick, never blocking the loop task.
+  if (static_cast<size_t>(Serial.availableForWrite()) < kCsvChunkBytes) {
+    return;
+  }
+  char chunk[kCsvChunkBytes];
+  size_t next = testRunner_.nextDumpIndex();
+  const size_t from = next;
+  const size_t written = formatCsvChunk(testRunner_.samples(), next, chunk,
+                                        sizeof(chunk), &next);
+  testRunner_.advanceDump(next);
+  if (written > 0) {
+    Serial.write(reinterpret_cast<const uint8_t *>(chunk), written);
+  }
+  // Documented caller stop rule (TestData.h): 0 bytes = complete (or a
+  // buffer too small for one line - impossible at 128 B), and a chunk
+  // that wrote bytes WITHOUT advancing is the END-marker-only final
+  // chunk (the empty-buffer document) - both finish the dump.
+  if (written == 0 || next == from) {
+    testRunner_.endDump(next);
+  }
 }
 
 bool Commands::execute(String command, String &response) {
@@ -154,8 +225,56 @@ bool Commands::execute(String command, String &response) {
   }
 
   if (named == Command::Stop) {
-    motion_.stop();
-    response = msg(Msg::StopRequested);
+    // M3 T012: a running cycle/homing aborts through the runner first
+    // (forceStop semantics); a plain move keeps its decel `stop`.
+    if (testRunner_.abort()) {
+      response = msg(Msg::TestAbortedNote);
+    } else {
+      motion_.stop();
+      response = msg(Msg::StopRequested);
+    }
+    return true;
+  }
+
+  if (named == Command::Home || named == Command::HomeTop) {
+    // D11: exclusive; the D15 Error-state rejection already ran above.
+    if (testRunner_.active()) {
+      response = msg(Msg::CycleBusy);
+      return false;
+    }
+    if (testRunner_.dumpInProgress()) {
+      // A started test would clear the sample buffer mid-dump (and a
+      // homing report line would land inside the CSV stream).
+      response = msg(Msg::DumpBusy);
+      return false;
+    }
+    const bool topOnly = named == Command::HomeTop;
+    if (!testRunner_.startHome(topOnly)) {
+      // Homing FSM latched Fault (device Error) - unreachable through the
+      // Error gate above, kept as a defensive no-crash path.
+      response = msg(Msg::CycleBusy);
+      return false;
+    }
+    response = msg(topOnly ? Msg::HomeTopStarted : Msg::HomeStarted);
+    return true;
+  }
+
+  if (named == Command::Test) {
+    if (testRunner_.active()) {
+      response = msg(Msg::CycleBusy);
+      return false;
+    }
+    if (testRunner_.dumpInProgress()) {
+      // startTest() clears the buffer - mid-dump that destroys the very
+      // data being streamed (US2).
+      response = msg(Msg::DumpBusy);
+      return false;
+    }
+    if (!testRunner_.startTest()) {
+      response = msg(Msg::CycleBusy);
+      return false;
+    }
+    response = msg(Msg::TestStarted);
     return true;
   }
 
@@ -250,6 +369,84 @@ bool Commands::execute(String command, String &response) {
         static_cast<long>(motion_.steps() + outputTurnsToSteps(value)));
     response = String(msg(Msg::RelativeMoveStarted)) + String(value, 3) +
                msg(Msg::RevolutionsSuffix);
+    return true;
+  }
+
+  // M3 T012: test config knobs (persisted, clamped; FR-005).
+  const ParseResult testSpeedResult =
+      parseValueAfterCommand(command, "testspeed", value);
+  if (testSpeedResult == ParseResult::InvalidValue) {
+    return reportInvalidValue(response);
+  }
+  if (testSpeedResult == ParseResult::Ok) {
+    return applyTestConfigValue(value, response,
+                                &TestConfig::testSpeedMmPerMin,
+                                msg(Msg::MillimetrePerMinuteSuffix));
+  }
+
+  const ParseResult testArmResult =
+      parseValueAfterCommand(command, "testarm", value);
+  if (testArmResult == ParseResult::InvalidValue) {
+    return reportInvalidValue(response);
+  }
+  if (testArmResult == ParseResult::Ok) {
+    return applyTestConfigValue(value, response, &TestConfig::armForceN,
+                                msg(Msg::NewtonSuffix));
+  }
+
+  const ParseResult testDropResult =
+      parseValueAfterCommand(command, "testdrop", value);
+  if (testDropResult == ParseResult::InvalidValue) {
+    return reportInvalidValue(response);
+  }
+  if (testDropResult == ParseResult::Ok) {
+    return applyTestConfigValue(value, response, &TestConfig::dropPercent,
+                                msg(Msg::PercentSuffix));
+  }
+
+  // `data [from-index]`: CSV dump (TC-005 resume grammar). Bare `data`
+  // dumps from 0 (NotACommand from the index parser means no token).
+  uint32_t dataIndex = 0;
+  const ParseResult dataIndexResult =
+      parseIndexAfterCommand(command, "data", dataIndex);
+  if (dataIndexResult == ParseResult::InvalidValue) {
+    return reportInvalidValue(response);
+  }
+  if (dataIndexResult == ParseResult::Ok) {
+    if (testRunner_.active()) {
+      response = msg(Msg::DumpBlockedRunning);
+      return false;
+    }
+    if (testRunner_.dumpInProgress()) {
+      response = msg(Msg::DumpBusy);
+      return false;
+    }
+    testRunner_.beginDump(dataIndex);
+    response = msg(Msg::DumpStarted);  // the CSV itself streams from
+                                       // pollDump() in the loop task
+    return true;
+  }
+  if (command == "data") {
+    if (testRunner_.active()) {
+      response = msg(Msg::DumpBlockedRunning);
+      return false;
+    }
+    if (testRunner_.dumpInProgress()) {
+      response = msg(Msg::DumpBusy);
+      return false;
+    }
+    testRunner_.beginDump(static_cast<size_t>(0));
+    response = msg(Msg::DumpStarted);
+    return true;
+  }
+
+  if (command == "testdata") {
+    // FR-005: machine-readable status via the pure formatter (stable
+    // key=value grammar, locale-neutral numbers).
+    char status[96];
+    formatTestDataStatus(testRunner_.samples(), testRunner_.peakForceN(),
+                         testRunner_.peakIndex(), status, sizeof(status));
+    response = String(msg(Msg::TestdataPrefix)) + status;
     return true;
   }
 

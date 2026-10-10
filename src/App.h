@@ -18,6 +18,7 @@
 #include "PowerSense.h"
 #include "SerialCli.h"
 #include "Settings.h"
+#include "TestCycle.h"
 #include "TestRunner.h"
 #include "WebUi.h"
 
@@ -48,6 +49,11 @@ class App {
  private:
   static constexpr unsigned long kStatusIntervalMs = 500;
 
+  // M3 T012: one-line completion reports on runner state transitions
+  // (FR-002(6) summary, Limit/Aborted notes, homing results). Called
+  // every loop; prints only on a transition.
+  void reportRunnerEvents();
+
   Settings &settings_;
   IMotion &motion_;
   ILoadCell &loadcell_;
@@ -74,4 +80,9 @@ class App {
   }
 
   LedStatus led_;
+
+  // M3 T012: last-seen runner states for transition-edge reporting.
+  TestState lastTestState_ = TestState::Idle;
+  HomePhase lastHomePhase_ = HomePhase::Idle;
+  bool started_ = false;  // suppress the boot report until the first tick
 };

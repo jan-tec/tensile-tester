@@ -19,6 +19,9 @@ void App::begin() {
   loadcell_.begin(settings_);
   powerSense_.begin();
   endstops_.begin();  // M3-T008: endstop inputs (levels live from boot)
+  // M3-T012: test config from NVS (defaults on first boot; clamped on
+  // load - the single validation boundary is clampTestConfig).
+  testRunner_.applyConfig(settings_.loadTestConfig());
 
   // M1: blocking startup selftest (FR-007 boot log); must finish before
   // the Web UI answers so /api/status can already report the checks.
@@ -30,6 +33,60 @@ void App::begin() {
   led_.begin(millis());
 
   webUi_.begin();
+}
+
+void App::reportRunnerEvents() {
+  const TestState testState = testRunner_.testState();
+  const HomePhase homePhase = testRunner_.homing().phase();
+  const bool first = !started_;
+  started_ = true;
+
+  // Standalone homing results (an in-cycle homing is reported by the
+  // cycle summary below - its Done leads straight into Pulling).
+  if (!first && homePhase == HomePhase::Done &&
+      lastHomePhase_ != HomePhase::Done &&
+      testState != TestState::Homing && lastTestState_ != TestState::Homing) {
+    if (testRunner_.homing().datumSetThisRun()) {
+      // This completed run established the datum (also true for an
+      // idempotent re-home); `home top` never sets it (D12).
+      Serial.println(msg(Msg::HomingDatumSet));
+    } else if (testRunner_.topSeekSpanValid()) {
+      Serial.print(msg(Msg::HomeTopReachedPrefix));
+      Serial.print(testRunner_.topSeekSpanMm(), 2);
+      Serial.println(msg(Msg::MillimetreSuffix));
+    } else {
+      Serial.println(msg(Msg::HomeTopReachedDatumUnknown));
+    }
+  }
+
+  if (!first && testState != lastTestState_) {
+    switch (testState) {
+      case TestState::Done:
+        // FR-002(6): peak force, break displacement, sample count.
+        Serial.print(msg(Msg::TestSummaryPeakPrefix));
+        Serial.print(testRunner_.peakForceN(), 2);
+        Serial.print(msg(Msg::TestSummaryBreakPrefix));
+        Serial.print(testRunner_.breakDisplacementMm(), 2);
+        Serial.print(msg(Msg::TestSummarySamplesPrefix));
+        Serial.print(
+            static_cast<unsigned>(testRunner_.samples().count()));
+        if (testRunner_.samples().truncated()) {
+          Serial.print(msg(Msg::TestTruncatedNote));
+        }
+        Serial.println();
+        break;
+      case TestState::Limit:
+        Serial.println(msg(Msg::TestLimitReached));
+        break;
+      case TestState::Aborted:
+        Serial.println(msg(Msg::TestAbortedNote));
+        break;
+      default:
+        break;  // Error: the STATE line (Diagnostics) already reports it
+    }
+  }
+  lastTestState_ = testState;
+  lastHomePhase_ = homePhase;
 }
 
 void App::loop() {
@@ -50,6 +107,8 @@ void App::loop() {
   // driver in the same loop iteration.
   testRunner_.tick(millis(),
                    diagnostics_.model().state() == DeviceState::Error);
+  reportRunnerEvents();
+  commands_.pollDump();  // M3-T012: CSV dump pump (D8 chunking)
 
   // FR-009: on the transition into Error the driver must be off
   // (boot faults already disable it in Diagnostics; this covers the

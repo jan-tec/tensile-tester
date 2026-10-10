@@ -1,0 +1,4 @@
+(fp_lib_table
+  (version 7)
+  (lib (name "Breakoutboard-Footprints")(type "KiCad")(uri "${KIPRJMOD}/Breakoutboard-Footprints.pretty")(options "")(descr ""))
+)

@@ -67,8 +67,9 @@ class App {
   unsigned long lastStatusMs_ = 0;
   DeviceState lastModelState_ = DeviceState::Booting;
 
-  // M8: LED base-state mapping (plan D2) - Homing/Running become
-  // reachable with M3-T011; the mapping is complete from day one.
+  // M8: LED base-state mapping (plan D2) - the DeviceModel layer. The
+  // cycle refinement (Homing/Running under a healthy device) lives in
+  // loop() next to led_.tick since M8-T003.
   static led::LedBase ledBaseFor(DeviceState state) {
     switch (state) {
       case DeviceState::Booting:
@@ -80,6 +81,11 @@ class App {
   }
 
   LedStatus led_;
+
+  // M8-T003: one-shot Break overlay latch (set by reportRunnerEvents on
+  // the Pulling->Tail-with-break edge, consumed by the LED block in the
+  // same loop iteration).
+  bool pendingBreakLed_ = false;
 
   // M3 T012: last-seen runner states for transition-edge reporting.
   TestState lastTestState_ = TestState::Idle;

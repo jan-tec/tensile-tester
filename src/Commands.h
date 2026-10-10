@@ -55,6 +55,14 @@ class Commands {
   // take it whole. No-op unless a `data` command started a dump.
   void pollDump();
 
+  // M8-T003: read-and-clear flag set by a successful cal_apply - App
+  // turns it into the CalApplied LED overlay (Idle window, FR-005).
+  bool consumeCalAppliedEvent() {
+    const bool event = calAppliedEvent_;
+    calAppliedEvent_ = false;
+    return event;
+  }
+
   // Help line printed by the serial path after an unknown command
   // (localized pair from Text, M2-T003).
   static String helpText();
@@ -91,4 +99,6 @@ class Commands {
   LoadCell &loadcell_;
   Diagnostics &diagnostics_;
   TestRunner &testRunner_;
+
+  bool calAppliedEvent_ = false;  // M8-T003 (consumed by App's LED block)
 };

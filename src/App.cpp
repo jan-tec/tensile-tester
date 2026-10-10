@@ -63,6 +63,14 @@ void App::reportRunnerEvents() {
 
   if (!first && testState != lastTestState_) {
     switch (testState) {
+      case TestState::Tail:
+        // M8-T003: the break overlay (emission window: Running, FR-005).
+        // Buffer-full also enters Tail - only a real break latches the
+        // LED event.
+        if (testRunner_.breakDetected()) {
+          pendingBreakLed_ = true;
+        }
+        break;
       case TestState::Done:
         // FR-002(6): peak force, break displacement, sample count.
         Serial.print(msg(Msg::TestSummaryPeakPrefix));
@@ -122,15 +130,44 @@ void App::loop() {
   }
   lastModelState_ = modelState;
 
+  // M8-T003: cycle refinement under a healthy device (FR-007: the LED
+  // module owns no state - App maps DeviceModel + cycle state). A test
+  // pull (and its tail) reads as Running; a homing (standalone or
+  // in-cycle) as Homing.
+  led::LedBase ledBase = ledBaseFor(modelState);
+  if (ledBase == led::LedBase::Idle) {
+    const TestState testState = testRunner_.testState();
+    if (testState == TestState::Pulling || testState == TestState::Tail) {
+      ledBase = led::LedBase::Running;
+    } else if (testState == TestState::Homing ||
+               testRunner_.homing().motionWanted()) {
+      ledBase = led::LedBase::Homing;
+    }
+  }
+
   // M8: endstop edges -> LED overlay (FR-005 emission window: forwarded
   // from every non-Error state; Error keeps the LED per FR-008). Edges
-  // are read-and-clear, so they never queue across states.
+  // are read-and-clear, so they never queue across states. Break and
+  // CalApplied are latest-wins per the FR-005 overlay rule.
   led::LedEvent ledEvent = led::LedEvent::None;
-  if (modelState != DeviceState::Error &&
-      (endstops_.bottomEdge() || endstops_.topEdge())) {
-    ledEvent = led::LedEvent::EndstopEdge;
+  if (modelState != DeviceState::Error) {
+    if (pendingBreakLed_) {
+      pendingBreakLed_ = false;
+      ledEvent = led::LedEvent::Break;
+    } else if (commands_.consumeCalAppliedEvent()) {
+      // Window: calibration fires only in Idle (FR-005); the flag was
+      // set on cal_apply success in Commands.
+      if (modelState == DeviceState::Idle) {
+        ledEvent = led::LedEvent::CalApplied;
+      }
+    } else if (endstops_.bottomEdge() || endstops_.topEdge()) {
+      ledEvent = led::LedEvent::EndstopEdge;
+    }
+  } else {
+    pendingBreakLed_ = false;
+    commands_.consumeCalAppliedEvent();  // FR-008: no overlay in Error
   }
-  led_.tick(ledBaseFor(modelState), ledEvent, millis());
+  led_.tick(ledBase, ledEvent, millis());
 
   const unsigned long now = millis();
   if (now - lastStatusMs_ >= kStatusIntervalMs) {

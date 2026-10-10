@@ -209,6 +209,7 @@ bool Commands::execute(String command, String &response) {
       case LoadCell::CalError::None:
         break;
     }
+    calAppliedEvent_ = true;  // M8-T003: CalApplied LED overlay
     response = String(msg(Msg::CalSaved)) +
                String(loadcell_.calibrationFactor(), 6);
     return true;

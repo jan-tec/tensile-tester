@@ -7,6 +7,7 @@
 
 extern void runGearMathTests();
 extern void runBreakDetectTests();
+extern void runHomingModelTests();
 extern void runCommandParserTests();
 extern void runCalibrationTests();
 extern void runDeviceModelTests();
@@ -23,6 +24,7 @@ int main(void) {
   UNITY_BEGIN();
   runGearMathTests();
   runBreakDetectTests();
+  runHomingModelTests();
   runCommandParserTests();
   runCalibrationTests();
   runDeviceModelTests();

@@ -19,17 +19,15 @@ headroom) - enforced permanently by host test TC-101.
 | Running (test)* | steady ON | 40% |
 | Error | 3 short flashes, 3 s cycle | 100% |
 
-\* Homing/Running go live with M3-T011 (test runner).
+\* Homing/Running went live with M3-T011/T012 (test runner + command surface).
 
 ## Event overlays (about 2 s, then back to the base pattern)
 
 | Event | Pattern | When it fires |
 |-------|---------|---------------|
 | Endstop pressed (D25 bottom / D26 top) | 1 long flash, twice | machine not in Error; since M8-T002 |
-| Sample broke* | 2 short flashes, twice | while Running (M3-T011) |
-| Calibration applied* | short + long, twice | in Idle (`cal_apply`, M3-T011) |
-
-\* Not in the firmware yet; rows activate with M8-T003.
+| Sample broke | 2 short flashes, twice | while Running (M8-T003, #154) |
+| Calibration applied | short + long, twice | in Idle (`cal_apply`, M8-T003, #154) |
 
 Brightness is gamma-corrected PWM (level^2.2), 4 steps only - brightness
 is emphasis, never a data value.

@@ -140,6 +140,17 @@ and API).
   the bench: a single injected failed poll kept the red message on screen for
   minutes although polling had recovered)
 
+- Jog buttons are reachable from the keyboard and carry text names. They were
+  wired to `pointerdown`/`pointerup` only, so Enter/Space on a focused jog button
+  did nothing (measured on the bench: two presses produced zero `/api/command`
+  requests) - WCAG 2.1.1. `keydown`/`keyup` now mirror press-and-hold (auto-
+  repeat ignored, Space no longer scrolls the page) and `blur` stops the jog the
+  way `pointerleave` does, so a key released after focus leaves cannot leave the
+  machine running. The buttons are a bare `U+25B2`/`U+25BC` glyph, so they also
+  got `aria-label` (WCAG 4.1.2), and `#message` is now
+  `aria-live="polite"` so command replies and connection errors are announced
+  (WCAG 4.1.3). Three new host cases in `test/test_ui_html.cpp` went red first
+
 - Web UI no longer 404s on `/favicon.ico` (#59): `src/UiHtml.h` declares an
   inline SVG data-URI icon, so the browser stops requesting a file the firmware
   never served and the console error on every page load is gone. `UiHtml.h` is

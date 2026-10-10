@@ -49,9 +49,52 @@ void test_index_html_wires_all_controls(void) {
   TEST_ASSERT_TRUE_MESSAGE(inHtml("data-prefix=\"feed\""), "feed form missing");
 }
 
+// True if the tag containing `anchor` also carries an aria-label (search stops
+// at the tag's closing bracket, so a label in a later tag cannot satisfy it).
+static bool tagHasAriaLabel(const char *anchor) {
+  const char *at = std::strstr(INDEX_HTML, anchor);
+  if (at == nullptr) {
+    return false;
+  }
+  const char *tagEnd = std::strchr(at, '>');
+  const char *label = std::strstr(at, "aria-label=\"");
+  return tagEnd != nullptr && label != nullptr && label < tagEnd;
+}
+
+// The jog buttons are labelled with a bare glyph (U+25B2/U+25BC): without a text
+// alternative a screen reader announces only "up-pointing triangle", on a
+// control that moves the crosshead (WCAG 4.1.2 name/role/value).
+void test_jog_buttons_have_text_names(void) {
+  TEST_ASSERT_TRUE_MESSAGE(tagHasAriaLabel("data-jog=\"up\""),
+                           "jog up button has no aria-label");
+  TEST_ASSERT_TRUE_MESSAGE(tagHasAriaLabel("data-jog=\"down\""),
+                           "jog down button has no aria-label");
+}
+
+// Command replies and connection errors appear in #message; without a live
+// region they are silent for assistive technology (WCAG 4.1.3 status messages).
+void test_message_area_is_a_live_region(void) {
+  TEST_ASSERT_TRUE_MESSAGE(inHtml("id=\"message\" aria-live=\"polite\""),
+                           "#message is not announced as a status message");
+}
+
+// Keyboard parity for the hold-to-jog buttons (WCAG 2.1.1): the pointer path
+// alone (pointerdown/pointerup) is unreachable from the keyboard, so a keyboard
+// user cannot jog at all - and keydown/keyup plus blur is what gives the same
+// release-stops-it and focus-lost-stops-it behaviour.
+void test_jog_supports_keyboard_activation(void) {
+  TEST_ASSERT_TRUE_MESSAGE(inHtml("addEventListener(\"keydown\""), "no keydown handler");
+  TEST_ASSERT_TRUE_MESSAGE(inHtml("addEventListener(\"keyup\""), "no keyup handler");
+  TEST_ASSERT_TRUE_MESSAGE(inHtml("addEventListener(\"blur\""),
+                           "no blur handler: a held key would never stop");
+}
+
 void runUiHtmlTests(void) {
   RUN_TEST(test_index_html_has_content);
   RUN_TEST(test_index_html_declares_language_and_charset);
   RUN_TEST(test_index_html_declares_inline_favicon);
   RUN_TEST(test_index_html_wires_all_controls);
+  RUN_TEST(test_jog_buttons_have_text_names);
+  RUN_TEST(test_message_area_is_a_live_region);
+  RUN_TEST(test_jog_supports_keyboard_activation);
 }

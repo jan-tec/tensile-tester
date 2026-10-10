@@ -229,13 +229,13 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
       <section class="card">
         <h2>Steuerung</h2>
         <div class="jog">
-          <button class="arrow success jog-btn" data-jog="up" type="button">&#9650;</button>
+          <button class="arrow success jog-btn" data-jog="up" type="button" aria-label="Aufwärts joggen (Taste halten)">&#9650;</button>
           <div class="jog-mid">
             <div></div>
             <button class="danger" data-cmd="stop" type="button">Stop</button>
             <div></div>
           </div>
-          <button class="arrow secondary jog-btn" data-jog="down" type="button">&#9660;</button>
+          <button class="arrow secondary jog-btn" data-jog="down" type="button" aria-label="Abwärts joggen (Taste halten)">&#9660;</button>
         </div>
         <form data-prefix="feed" class="speed-form">
           <div class="speed-inline">
@@ -317,7 +317,7 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
 
     </div>
 
-    <div id="message"></div>
+    <div id="message" aria-live="polite"></div>
   </div>
 
   <script> <!-- Plotting (Kraft-Graph) -->
@@ -566,6 +566,33 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
       button.addEventListener("pointerup", stopJog);
       button.addEventListener("pointerleave", stopJog);
       button.addEventListener("pointercancel", stopJog);
+
+      // Keyboard parity (WCAG 2.1.1): holding Enter/Space behaves like holding
+      // the pointer down. Auto-repeat keydowns are ignored, so holding the key
+      // sends one jog start instead of one per repeat.
+      const isHoldKey = (key) => key === "Enter" || key === " " || key === "Spacebar";
+
+      const keyDown = (event) => {
+        if (!isHoldKey(event.key) || event.repeat) {
+          return;
+        }
+        event.preventDefault();  // Space would scroll the page instead
+        startJog(event);
+      };
+
+      const keyUp = (event) => {
+        if (!isHoldKey(event.key)) {
+          return;
+        }
+        stopJog(event);
+      };
+
+      // blur is the keyboard equivalent of pointerleave: if focus moves while a
+      // key is still down the keyup never reaches the button, and the machine
+      // would keep running unattended.
+      button.addEventListener("keydown", keyDown);
+      button.addEventListener("keyup", keyUp);
+      button.addEventListener("blur", () => stopJog(null));
     }
 
     document.querySelectorAll(".jog-btn").forEach(bindJogButton);

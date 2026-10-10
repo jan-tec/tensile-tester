@@ -6,6 +6,7 @@
 #include <unity.h>
 
 extern void runGearMathTests();
+extern void runBreakDetectTests();
 extern void runCommandParserTests();
 extern void runCalibrationTests();
 extern void runDeviceModelTests();
@@ -21,6 +22,7 @@ void tearDown(void) {}
 int main(void) {
   UNITY_BEGIN();
   runGearMathTests();
+  runBreakDetectTests();
   runCommandParserTests();
   runCalibrationTests();
   runDeviceModelTests();

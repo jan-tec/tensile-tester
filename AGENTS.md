@@ -197,6 +197,20 @@ use the PR flow. If a hard gate is ever wanted, options are: upgrade the
 account to GitHub Pro, or make the repo public (rulesets are free on public
 repos).
 
+## Push Guardrail (agent sessions)
+
+`main` protection here is **convention only** (private repo, free personal
+account), so a direct push to `main` succeeds silently. It happened once
+(`165c0ac`, see #100). Rules that make it impossible to repeat by accident:
+
+| Rule | Detail |
+|------|--------|
+| Never `git push ... HEAD` | always name the branch: `git push -u origin fix/whatever` |
+| Confirm the branch before pushing | `git branch --show-current` must print the intended branch; if it prints `main`, stop |
+| Don't chain `switch` with `commit`/`push` | `git switch -c x && git commit ...` hides a failed switch, and the commit lands on the previous branch |
+| Confirm after `switch -c` | the command's exit code is not evidence; read `git branch --show-current` |
+| Audit | non-merge commits on `main` whose subject lacks `(#<n>)` are direct pushes. Verified command: `git log --no-merges --format="%h %s" origin/main \| grep -vE '\(#[0-9]+\)$'` - baseline 2026-10-10: 10 hits, 9 pre-date the 2026-08-19 PR flow, 1 is #100 |
+
 ## No-Quirk Policy (NQP)
 
 **Only a fixed quirk is a good quirk.**

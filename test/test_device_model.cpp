@@ -4,18 +4,21 @@
 // M1 FR-001: Booting -> SelfTest -> Idle | Error. Every fault path ends in
 // Error with the triggering machine code; the caller (Diagnostics) disables
 // the motor driver when the model reports a fault. TC-001: 100% of the
-// 4 states x 5 events transition table is pinned here, RED-first.
+// 4 states x 6 events transition table is pinned here, RED-first.
 //
 // Transition table (pinned):
 //   Booting:   SelfTestStart->SelfTest  CheckResult->Booting
 //              SelfTestDone->Booting    PowerLow->Booting   Reset->Booting
+//              RuntimeFault->Booting
 //   SelfTest:  SelfTestStart->SelfTest  CheckResult(0)->SelfTest
 //              CheckResult(code)->Error SelfTestDone->Idle  Reset->Booting
+//              RuntimeFault->SelfTest
 //   Idle:      SelfTestStart->Idle      CheckResult->Idle
 //              SelfTestDone->Idle       PowerLow->Error     Reset->Booting
+//              RuntimeFault(code)->Error (M3 FR-007: 0x05xx homing faults)
 //   Error:     SelfTestStart->Error     CheckResult->Error
 //              SelfTestDone->Error      PowerLow->Error (first fault wins)
-//              Reset->Booting
+//              RuntimeFault->Error (first fault wins)  Reset->Booting
 #include <unity.h>
 
 #include <FirmwareCore.h>
@@ -100,6 +103,30 @@ void test_device_model_reset_from_every_state(void) {
   TEST_ASSERT_EQUAL_UINT16(0, model.faultCode());  // fault cleared
 }
 
+void test_device_model_runtime_fault_in_idle_enters_error(void) {
+  // M3 FR-007 (T011): a homing fault (0x05xx) reported by TestRunner at
+  // runtime drives the model to Error with its stable code - same
+  // transition as PowerLow, device stays "Idle" while a test runs (D1).
+  DeviceModel model;
+  model.dispatch(DeviceEvent::SelfTestStart);
+  model.dispatch(DeviceEvent::SelfTestDone);
+  model.dispatch(DeviceEvent::RuntimeFault, 0x0501);
+  TEST_ASSERT_STATE(DeviceState::Error, model);
+  TEST_ASSERT_EQUAL_UINT16(0x0501, model.faultCode());
+}
+
+void test_device_model_runtime_fault_replaces_power_error_context(void) {
+  // Distinct codes stay distinct: an endstop fault after a rebooted power
+  // fault carries its own code (codes are never conflated).
+  DeviceModel model;
+  model.dispatch(DeviceEvent::SelfTestStart);
+  model.dispatch(DeviceEvent::SelfTestDone);
+  model.dispatch(DeviceEvent::RuntimeFault, 0x0502);
+  model.dispatch(DeviceEvent::PowerLow, 0x0201);  // ignored in Error
+  TEST_ASSERT_STATE(DeviceState::Error, model);
+  TEST_ASSERT_EQUAL_UINT16(0x0502, model.faultCode());
+}
+
 void test_device_model_invalid_events_are_no_ops(void) {
   // SelfTestStart outside Booting
   DeviceModel a;
@@ -126,6 +153,21 @@ void test_device_model_invalid_events_are_no_ops(void) {
   d.dispatch(DeviceEvent::PowerLow, 0x0201);
   TEST_ASSERT_STATE(DeviceState::SelfTest, d);
   TEST_ASSERT_EQUAL_UINT16(0, d.faultCode());
+
+  // RuntimeFault outside Idle (Booting, SelfTest, Error) and with code 0
+  DeviceModel f;
+  f.dispatch(DeviceEvent::RuntimeFault, 0x0501);  // Booting
+  TEST_ASSERT_STATE(DeviceState::Booting, f);
+  TEST_ASSERT_EQUAL_UINT16(0, f.faultCode());
+  f.dispatch(DeviceEvent::SelfTestStart);
+  f.dispatch(DeviceEvent::RuntimeFault, 0x0501);  // SelfTest
+  TEST_ASSERT_STATE(DeviceState::SelfTest, f);
+  DeviceModel g;
+  g.dispatch(DeviceEvent::SelfTestStart);
+  g.dispatch(DeviceEvent::SelfTestDone);  // Idle
+  g.dispatch(DeviceEvent::RuntimeFault, 0);  // code 0: OK/WARN never faults
+  TEST_ASSERT_STATE(DeviceState::Idle, g);
+  TEST_ASSERT_EQUAL_UINT16(0, g.faultCode());
 
   // SelfTestStart / SelfTestDone / CheckResult in Error
   DeviceModel e;
@@ -169,6 +211,8 @@ void runDeviceModelTests(void) {
   RUN_TEST(test_device_model_check_fail_enters_error_with_code);
   RUN_TEST(test_device_model_selftest_done_to_idle);
   RUN_TEST(test_device_model_power_low_in_idle_enters_error);
+  RUN_TEST(test_device_model_runtime_fault_in_idle_enters_error);
+  RUN_TEST(test_device_model_runtime_fault_replaces_power_error_context);
   RUN_TEST(test_device_model_first_fault_wins);
   RUN_TEST(test_device_model_reset_from_every_state);
   RUN_TEST(test_device_model_invalid_events_are_no_ops);

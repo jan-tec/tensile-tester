@@ -18,18 +18,21 @@
 #include "PowerSense.h"
 #include "SerialCli.h"
 #include "Settings.h"
+#include "TestRunner.h"
 #include "WebUi.h"
 
 class App {
  public:
   App(Settings &settings, IMotion &motion, ILoadCell &loadcell,
-      PowerSense &powerSense, Endstops &endstops, Commands &commands,
-      SerialCli &serialCli, WebUi &webUi, Diagnostics &diagnostics)
+      PowerSense &powerSense, Endstops &endstops, TestRunner &testRunner,
+      Commands &commands, SerialCli &serialCli, WebUi &webUi,
+      Diagnostics &diagnostics)
       : settings_(settings),
         motion_(motion),
         loadcell_(loadcell),
         powerSense_(powerSense),
         endstops_(endstops),
+        testRunner_(testRunner),
         commands_(commands),
         serialCli_(serialCli),
         webUi_(webUi),
@@ -50,6 +53,7 @@ class App {
   ILoadCell &loadcell_;
   PowerSense &powerSense_;
   Endstops &endstops_;
+  TestRunner &testRunner_;
   Commands &commands_;
   SerialCli &serialCli_;
   WebUi &webUi_;

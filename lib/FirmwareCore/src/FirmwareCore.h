@@ -159,11 +159,14 @@ ParseResult parseLocaleAfterCommand(const char* command, const char* prefix,
 
 enum class DeviceState { Booting, SelfTest, Idle, Error };
 
-// Events the host code feeds the model. CheckResult/PowerLow carry the
-// stable machine code (0x01xx NVS, 0x02xx power, 0x03xx HX711, 0x04xx
-// motor); 0 means OK/WARN (no fault code).
+// Events the host code feeds the model. CheckResult/PowerLow/RuntimeFault
+// carry the stable machine code (0x01xx NVS, 0x02xx power, 0x03xx HX711,
+// 0x04xx motor, 0x05xx M3 endstop homing faults); 0 means OK/WARN (no
+// fault code). RuntimeFault (M3 T011) is the non-power runtime fault path
+// (homing FSM faults from TestRunner); it transitions Idle -> Error with
+// its code exactly like PowerLow.
 enum class DeviceEvent { SelfTestStart, CheckResult, SelfTestDone, PowerLow,
-                         Reset };
+                         RuntimeFault, Reset };
 
 // Stable English state names for the FR-007 STATE log lines.
 const char* deviceStateName(DeviceState state);

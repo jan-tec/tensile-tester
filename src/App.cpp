@@ -43,6 +43,14 @@ void App::loop() {
   powerSense_.poll();
   diagnostics_.reportRuntimePowerState(powerSense_.state());
 
+  // M3-T011: runner tick AFTER the loadcell/endstop polling (fresh 10 Hz
+  // sample + debounced levels) and the power evaluation, so a power FAIL
+  // is visible on the same tick. A runner fault (homing 0x05xx) lands in
+  // the model BEFORE the Error-transition block below, disabling the
+  // driver in the same loop iteration.
+  testRunner_.tick(millis(),
+                   diagnostics_.model().state() == DeviceState::Error);
+
   // FR-009: on the transition into Error the driver must be off
   // (boot faults already disable it in Diagnostics; this covers the
   // runtime power path).
@@ -66,7 +74,10 @@ void App::loop() {
   const unsigned long now = millis();
   if (now - lastStatusMs_ >= kStatusIntervalMs) {
     lastStatusMs_ = now;
-    if (motion_.isEnabled() || loadcell_.isReady()) {
+    // D14 (M3): while a CSV dump is in flight the serial line belongs to
+    // it alone - an interleaved status line would break the host parser.
+    if (!testRunner_.dumpInProgress() &&
+        (motion_.isEnabled() || loadcell_.isReady())) {
       commands_.printPosition();
     }
   }

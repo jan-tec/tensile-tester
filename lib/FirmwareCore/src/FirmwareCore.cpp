@@ -260,6 +260,9 @@ void DeviceModel::dispatch(DeviceEvent event, uint16_t code) {
       }
       break;
     case DeviceEvent::PowerLow:
+    case DeviceEvent::RuntimeFault:
+      // Runtime faults (power FAIL, M3 homing faults): Idle -> Error with
+      // the code; first fault wins (Error has no exit but Reset, FR-009).
       if (state_ == DeviceState::Idle && code != 0) {
         state_ = DeviceState::Error;
         faultCode_ = code;

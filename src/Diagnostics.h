@@ -35,6 +35,11 @@ class Diagnostics {
   // every PowerSense::poll().
   void reportRuntimePowerState(PowerStatus state);
 
+  // M3 FR-007 (T011): a runtime fault with a stable machine code (0x05xx
+  // homing faults from TestRunner) -> DeviceModel Error through the same
+  // tracked path (STATE line, driver disabled by App's Error transition).
+  void reportRuntimeFault(uint16_t code);
+
   DeviceModel &model() { return model_; }
   const DeviceModel &model() const { return model_; }
 

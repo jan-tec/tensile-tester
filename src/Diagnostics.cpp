@@ -245,6 +245,14 @@ void Diagnostics::reportRuntimePowerState(PowerStatus state) {
   }
 }
 
+void Diagnostics::reportRuntimeFault(uint16_t code) {
+  // M3 T011: same tracked path as the power FAIL (STATE line only on an
+  // actual transition); code 0 is a no-op (OK/WARN never faults).
+  if (code != 0) {
+    dispatchTracked(DeviceEvent::RuntimeFault, code);
+  }
+}
+
 void Diagnostics::dispatchTracked(DeviceEvent event, uint16_t code) {
   const DeviceState oldState = model_.state();
   model_.dispatch(event, code);

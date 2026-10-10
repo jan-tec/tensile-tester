@@ -3,6 +3,7 @@
 #include "App.h"
 #include "Commands.h"
 #include "Diagnostics.h"
+#include "Endstops.h"
 #include "LoadCell.h"
 #include "Motion.h"
 #include "PowerSense.h"
@@ -19,12 +20,13 @@ Settings settings;
 Motion motion;
 LoadCell loadcell;
 PowerSense powerSense;
+Endstops endstops;  // M3-T008: endstop inputs (GPIO 25/26)
 Diagnostics diagnostics;
 Commands commands(settings, motion, loadcell, diagnostics);
 SerialCli serialCli(commands);
 WebUi webUi(commands, motion, loadcell, diagnostics);
-App app(settings, motion, loadcell, powerSense, commands, serialCli, webUi,
-        diagnostics);
+App app(settings, motion, loadcell, powerSense, endstops, commands,
+        serialCli, webUi, diagnostics);
 }  // namespace
 
 void setup() {

@@ -18,6 +18,7 @@ void App::begin() {
 
   loadcell_.begin(settings_);
   powerSense_.begin();
+  endstops_.begin();  // M3-T008: endstop inputs (levels live from boot)
 
   // M1: blocking startup selftest (FR-007 boot log); must finish before
   // the Web UI answers so /api/status can already report the checks.
@@ -29,6 +30,7 @@ void App::begin() {
 void App::loop() {
   webUi_.handleClient();
   loadcell_.poll();
+  endstops_.poll();  // M3-T008: 5 ms debounce cadence (edges for M8-T002)
   serialCli_.poll();
 
   // FR-005: 1 Hz runtime power monitoring; a debounced FAIL drives the

@@ -5,6 +5,8 @@
 // flow, NVS keys.
 #include "LoadCell.h"
 
+#include "Text.h"
+
 #include <FirmwareCore.h>
 
 void LoadCell::begin(Settings &settings) {
@@ -12,7 +14,7 @@ void LoadCell::begin(Settings &settings) {
   scale_.begin(kDoutPin, kSckPin);
 
   if (!scale_.wait_ready_timeout(2000)) {
-    Serial.println("HX711 nicht bereit. Kraftmessung bleibt deaktiviert.");
+    Serial.println(msg(Msg::Hx711NotReadyDisabled));
     ready_ = false;
     return;
   }
@@ -24,12 +26,12 @@ void LoadCell::begin(Settings &settings) {
   scale_.tare(1);
   ready_ = true;
   if (calibrationValid_) {
-    Serial.print("HX711 bereit. Kalibrierfaktor geladen: ");
+    Serial.print(msg(Msg::Hx711ReadyCalLoaded));
     Serial.println(calibrationFactor_, 6);
   } else {
-    Serial.println("HX711 bereit. Noch keine gueltige Kalibrierung gespeichert.");
+    Serial.println(msg(Msg::Hx711ReadyNoCal));
   }
-  Serial.println("Tara gesetzt.");
+  Serial.println(msg(Msg::TaraSet));
 }
 
 bool LoadCell::isReady() {

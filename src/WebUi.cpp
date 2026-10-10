@@ -2,6 +2,7 @@
 #include <WiFi.h>
 
 #include "Diagnostics.h"
+#include "Text.h"
 #include "UiHtml.h"
 
 #include "WebUi.h"
@@ -15,11 +16,11 @@ void WebUi::begin() {
   WiFi.mode(WIFI_AP);
   WiFi.softAP(WIFI_SSID, WIFI_PASSWORD);
 
-  Serial.print("WLAN Access Point gestartet: ");
+  Serial.print(msg(Msg::ApStarted));
   Serial.println(WIFI_SSID);
-  Serial.print("Passwort: ");
+  Serial.print(msg(Msg::ApPassword));
   Serial.println(WIFI_PASSWORD);
-  Serial.print("Weboberflaeche: http://");
+  Serial.print(msg(Msg::WebUiUrl));
   Serial.println(WiFi.softAPIP());
 
   server_.on("/", HTTP_GET, [this] { handleRoot(); });
@@ -77,6 +78,13 @@ String WebUi::statusJson() {
   json += "\"";
   json += ",\"faultCode\":";
   json += String(model.faultCode());
+  if (model.faultCode() != 0) {
+    // M2-T004 (FR-007): localized fault detail next to the stable code.
+    // Text rows are ASCII-only (FR-006), so no JSON escaping is needed.
+    json += ",\"faultMessage\":\"";
+    json += msg(msgForFault(static_cast<ErrorCode>(model.faultCode())));
+    json += "\"";
+  }
 
   size_t count = 0;
   const CheckResult *checks = diagnostics_.checks(&count);
@@ -130,14 +138,14 @@ void WebUi::handleStatus() {
 void WebUi::handleCommandApi() {
   if (!server_.hasArg("cmd")) {
     server_.send(400, "application/json",
-                 jsonMessage(false, "Parameter 'cmd' fehlt."));
+                 jsonMessage(false, msg(Msg::CmdParamMissing)));
     return;
   }
 
   String response;
   const String command = server_.arg("cmd");
   const bool ok = commands_.execute(command, response);
-  Serial.print("Web-Kommando: ");
+  Serial.print(msg(Msg::WebCommand));
   Serial.println(command);
   Serial.println(response);
   server_.send(ok ? 200 : 400, "application/json", jsonMessage(ok, response));

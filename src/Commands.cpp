@@ -48,9 +48,12 @@ bool Commands::execute(String command, String &response) {
   const DeviceModel &model = diagnostics_.model();
   if (model.state() == DeviceState::Error &&
       isMotionCommand(command.c_str())) {
-    char buffer[96];
-    snprintf(buffer, sizeof(buffer), "%s0x%04X%s", msg(Msg::FaultStatePrefix),
-             model.faultCode(), msg(Msg::FaultStateSuffix));
+    // M2-T004 (FR-007): the fault code carries its localized detail
+    // message (e.g. POWER_LOW -> "Supply voltage too low").
+    char buffer[160];
+    snprintf(buffer, sizeof(buffer), "%s0x%04X%s %s", msg(Msg::FaultStatePrefix),
+             model.faultCode(), msg(Msg::FaultStateSuffix),
+             msg(msgForFault(static_cast<ErrorCode>(model.faultCode()))));
     response = String(buffer);
     return false;
   }

@@ -29,6 +29,8 @@
 
 #include <FirmwareCore.h>  // Locale, resolveMsgTable (pure)
 
+#include "ErrorCode.h"  // ErrorCode (pure) - fault presentation (M2-T004)
+
 #ifndef PROGMEM
 #define PROGMEM
 #endif
@@ -146,6 +148,17 @@
       "): motion commands locked, reboot required.", \
       "): Motorkommandos gesperrt, Reboot noetig.") \
   MSG(FaultPowerLow, "Supply voltage too low", "Versorgungsspannung zu niedrig") \
+  MSG(FaultNvsOpen, "Settings storage (NVS) could not be opened.", \
+      "Einstellungen-Speicher (NVS) konnte nicht geoeffnet werden.") \
+  MSG(FaultNvsCorrupt, "Stored calibration values are not valid.", \
+      "Gespeicherte Kalibrierungswerte sind ungueltig.") \
+  MSG(FaultHx711NoVariation, \
+      "HX711 showed no signal variation during selftest.", \
+      "HX711 zeigte beim Selbsttest keine Aenderung.") \
+  MSG(FaultMotorNoFeedback, \
+      "Motor feedback cannot be verified (no sense wiring).", \
+      "Motor-Rueckmeldung nicht pruefbar (keine Fuehlerleitung).") \
+  MSG(FaultUnknown, "Unknown fault.", "Unbekannter Fehler.") \
   /* CLI generic */ \
   MSG(EmptyCommand, "Empty command.", "Leeres Kommando.") \
   MSG(UnknownCommand, "Unknown command.", "Unbekanntes Kommando.") \
@@ -217,6 +230,28 @@ inline const char *msg(Msg id) {
   const MsgPair &row = kMsgRows[static_cast<int>(id)];
   const bool deEntry = row.de != nullptr && row.de[0] != '\0';
   return resolveMsgTable(textLocale(), deEntry) == 1 ? row.de : row.en;
+}
+
+// M2-T004 (FR-007): stable ErrorCode -> presentable Msg. Pure mapping so the
+// serial FR-009 line and /api/status localize through the same table; the
+// codes themselves stay machine-readable and are never renumbered.
+// Unknown/None codes map to FaultUnknown (presentation must never be empty
+// when a fault is on display).
+inline Msg msgForFault(ErrorCode code) {
+  switch (code) {
+    case ErrorCode::NvsOpenFailed:
+      return Msg::FaultNvsOpen;
+    case ErrorCode::NvsCalibrationCorrupt:
+      return Msg::FaultNvsCorrupt;
+    case ErrorCode::PowerLow:
+      return Msg::FaultPowerLow;
+    case ErrorCode::Hx711NoVariation:
+      return Msg::FaultHx711NoVariation;
+    case ErrorCode::MotorNoFeedback:
+      return Msg::FaultMotorNoFeedback;
+    default:
+      return Msg::FaultUnknown;
+  }
 }
 
 // DE rows are the ASCII transcription (FR-006: ae/oe/ue/ss) of the German

@@ -5,6 +5,8 @@
 // M0-T003: WiFi preemption can no longer jitter the pulse train.
 #include "Motion.h"
 
+#include "Text.h"
+
 #include <FirmwareCore.h>
 
 void Motion::begin() {
@@ -17,7 +19,7 @@ void Motion::begin() {
   stepper_ = engine_.stepperConnectToPin(kStepPin);
   if (stepper_ == nullptr) {
     // No RMT/driver resource for this pin; motion stays inert.
-    Serial.println("Stepper-Treiber konnte nicht angelegt werden.");
+    Serial.println(msg(Msg::StepperInitFailed));
     return;
   }
   stepper_->setDirectionPin(kDirPin);

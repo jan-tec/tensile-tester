@@ -60,6 +60,37 @@ void test_msg_de_locale_serves_de(void) {
   TEST_ASSERT_EQUAL_STRING(msgEn(Msg::BootBanner), msg(Msg::BootBanner));
 }
 
+// M2-T004 (FR-007): every stable ErrorCode resolves to a presentable Msg,
+// and that message localizes in both locales (TC-003 "POWER_LOW-style
+// message localized in EN and DE").
+void test_msg_for_fault_maps_every_error_code(void) {
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(Msg::FaultNvsOpen),
+                        static_cast<int>(msgForFault(ErrorCode::NvsOpenFailed)));
+  TEST_ASSERT_EQUAL_INT(
+      static_cast<int>(Msg::FaultNvsCorrupt),
+      static_cast<int>(msgForFault(ErrorCode::NvsCalibrationCorrupt)));
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(Msg::FaultPowerLow),
+                        static_cast<int>(msgForFault(ErrorCode::PowerLow)));
+  TEST_ASSERT_EQUAL_INT(
+      static_cast<int>(Msg::FaultHx711NoVariation),
+      static_cast<int>(msgForFault(ErrorCode::Hx711NoVariation)));
+  TEST_ASSERT_EQUAL_INT(
+      static_cast<int>(Msg::FaultMotorNoFeedback),
+      static_cast<int>(msgForFault(ErrorCode::MotorNoFeedback)));
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(Msg::FaultUnknown),
+                        static_cast<int>(msgForFault(static_cast<ErrorCode>(0xBEEF))));
+}
+
+void test_fault_details_localize_in_both_locales(void) {
+  setTextLocale(Locale::En);
+  TEST_ASSERT_NOT_NULL(strstr(msg(msgForFault(ErrorCode::PowerLow)), "Supply voltage"));
+  TEST_ASSERT_NOT_NULL(strstr(msg(msgForFault(ErrorCode::NvsOpenFailed)), "NVS"));
+  setTextLocale(Locale::De);
+  TEST_ASSERT_NOT_NULL(strstr(msg(msgForFault(ErrorCode::PowerLow)), "Versorgung"));
+  TEST_ASSERT_NOT_NULL(strstr(msg(msgForFault(ErrorCode::NvsOpenFailed)), "NVS"));
+  setTextLocale(Locale::En);
+}
+
 void test_pairing_anchors(void) {
   TEST_ASSERT_NOT_NULL(strstr(msgEn(Msg::BootBanner), "test machine"));
   TEST_ASSERT_NOT_NULL(strstr(msgDe(Msg::BootBanner), "Pruefmaschinen"));
@@ -76,5 +107,9 @@ void runTextTableTests(void) {
   RUN_TEST(test_every_msg_has_en_entry);
   RUN_TEST(test_every_msg_has_de_entry);
   RUN_TEST(test_table_covers_msg_exactly);
+  RUN_TEST(test_msg_defaults_to_en);
+  RUN_TEST(test_msg_de_locale_serves_de);
+  RUN_TEST(test_msg_for_fault_maps_every_error_code);
+  RUN_TEST(test_fault_details_localize_in_both_locales);
   RUN_TEST(test_pairing_anchors);
 }

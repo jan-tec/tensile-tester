@@ -22,12 +22,13 @@ void Motion::begin() {
     Serial.println(msg(Msg::StepperInitFailed));
     return;
   }
-  stepper_->setDirectionPin(kDirPin, /*invert=*/true);
-  // invert=true (#160, bench-verified 2026-10-11): the physical DIR
-  // polarity maps steps+ to gantry DOWN. Inverted here so steps+ =
-  // physically UP, matching the datum convention (bottom endstop = 0,
-  // positive travel upward, M3 plan section 1) that every consumer
-  // (homing model, move/jog math, CSV displacement) is written against.
+  // dirHighCountsUp=false (#160): this FastAccelStepper version names the
+  // polarity flag 'dirHighCountsUp' (default true). The first fix attempt
+  // passed true believing it was an 'invert' flag with default false - a
+  // no-op, caught on the bench (move +5 still drove the gantry DOWN).
+  // false flips the DIR level per FastAccelStepper.cpp:57 so steps+ =
+  // physically UP, matching the datum convention (M3 plan section 1).
+  stepper_->setDirectionPin(kDirPin, /*dirHighCountsUp=*/false);
 
   outputRpm_ = feedMmPerMinToRpm(kDefaultFeedMmPerMin);
   applySettings();

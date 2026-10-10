@@ -35,8 +35,9 @@ enum class ErrorCode : uint16_t {
 // NOT_WIRED are warning/info, never FAIL.
 enum class CheckStatus { Ok, Warn, Fail, NotConnected, NotWired };
 
-// Check set (FR-002).
-enum class CheckId { Board, Nvs, Power, Hx711, Motor };
+// Check set (FR-002; M3 T013: +ENDSTOP1/ENDSTOP2, appended - never
+// renumber, the ids index /api/status selftest.checks rows).
+enum class CheckId { Board, Nvs, Power, Hx711, Motor, Endstop1, Endstop2 };
 
 // Result of one selftest check (FR-003 result shape).
 struct CheckResult {
@@ -60,6 +61,10 @@ inline const char* checkIdName(CheckId id) {
       return "HX711";
     case CheckId::Motor:
       return "MOTOR";
+    case CheckId::Endstop1:
+      return "ENDSTOP1";
+    case CheckId::Endstop2:
+      return "ENDSTOP2";
   }
   return "?";
 }

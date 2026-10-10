@@ -25,7 +25,9 @@ void App::begin() {
 
   // M1: blocking startup selftest (FR-007 boot log); must finish before
   // the Web UI answers so /api/status can already report the checks.
-  diagnostics_.runBootSelfTest(settings_, loadcell_, motion_, powerSense_);
+  // M3-T013: endstop boot levels join as checks 6+7.
+  diagnostics_.runBootSelfTest(settings_, loadcell_, motion_, powerSense_,
+                               endstops_);
 
   // M8 FR-009: LED configured only after the boot decisions (GPIO2 is a
   // strapping pin); the pattern engine starts with the post-selftest

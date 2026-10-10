@@ -111,6 +111,32 @@ void test_endstop_error_block(void) {
       errorCodeName(ErrorCode::EndstopPressedOrBroken));
 }
 
+void test_check_id_names(void) {
+  // M3 T013: the check vocabulary is machine-readable log grammar
+  // (FR-007 CHECK lines + /api/status ids) - pin every name so an edit
+  // cannot silently rename a row (was previously unpinned).
+  TEST_ASSERT_EQUAL_STRING("BOARD", checkIdName(CheckId::Board));
+  TEST_ASSERT_EQUAL_STRING("NVS", checkIdName(CheckId::Nvs));
+  TEST_ASSERT_EQUAL_STRING("POWER", checkIdName(CheckId::Power));
+  TEST_ASSERT_EQUAL_STRING("HX711", checkIdName(CheckId::Hx711));
+  TEST_ASSERT_EQUAL_STRING("MOTOR", checkIdName(CheckId::Motor));
+  TEST_ASSERT_EQUAL_STRING("ENDSTOP1", checkIdName(CheckId::Endstop1));
+  TEST_ASSERT_EQUAL_STRING("ENDSTOP2", checkIdName(CheckId::Endstop2));
+  // Defensive: unknown values must not crash (same contract as the
+  // state/error name lookups).
+  TEST_ASSERT_EQUAL_STRING("?", checkIdName(static_cast<CheckId>(99)));
+}
+
+void test_check_status_names(void) {
+  TEST_ASSERT_EQUAL_STRING("OK", checkStatusName(CheckStatus::Ok));
+  TEST_ASSERT_EQUAL_STRING("WARN", checkStatusName(CheckStatus::Warn));
+  TEST_ASSERT_EQUAL_STRING("FAIL", checkStatusName(CheckStatus::Fail));
+  TEST_ASSERT_EQUAL_STRING("NOT_CONNECTED",
+                           checkStatusName(CheckStatus::NotConnected));
+  TEST_ASSERT_EQUAL_STRING("NOT_WIRED", checkStatusName(CheckStatus::NotWired));
+  TEST_ASSERT_EQUAL_STRING("?", checkStatusName(static_cast<CheckStatus>(99)));
+}
+
 void runErrorCodeTests() {
   RUN_TEST(test_overall_all_ok);
   RUN_TEST(test_overall_fail_dominates);
@@ -120,6 +146,8 @@ void runErrorCodeTests() {
   RUN_TEST(test_overall_seventh_check_fail_wins);
   RUN_TEST(test_overall_seventh_check_warn_lowers_to_warn);
   RUN_TEST(test_endstop_error_block);
+  RUN_TEST(test_check_id_names);
+  RUN_TEST(test_check_status_names);
   RUN_TEST(test_error_code_hex_pads_to_four_digits);
   RUN_TEST(test_error_code_hex_fixed_width);
 }

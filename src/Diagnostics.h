@@ -12,6 +12,7 @@
 
 #include "ErrorCode.h"
 #include "FirmwareCore.h"
+#include "Endstops.h"
 #include "ILoadCell.h"
 #include "IMotion.h"
 #include "PowerSense.h"
@@ -22,13 +23,13 @@ constexpr const char *kFwVersion = "0.4.0";
 
 class Diagnostics {
  public:
-  // Blocking boot selftest (all five FR-002 checks: BOARD, NVS, POWER,
-  // HX711, MOTOR). Prints the BOOT line, runs the checks, prints
-  // CHECK/STATE lines, dispatches the results into the DeviceModel, and
-  // disables the motor driver on every fault path (FR-001).
-  // Budget: <= 5 s (NFR).
+  // Blocking boot selftest (all seven FR-002 checks: BOARD, NVS, POWER,
+  // HX711, MOTOR, ENDSTOP1, ENDSTOP2 - M3 T013). Prints the BOOT line,
+  // runs the checks, prints CHECK/STATE lines, dispatches the results
+  // into the DeviceModel, and disables the motor driver on every fault
+  // path (FR-001). Budget: <= 5 s (NFR).
   void runBootSelfTest(Settings &settings, ILoadCell &loadcell, IMotion &motion,
-                       PowerSense &power);
+                       PowerSense &power, Endstops &endstops);
 
   // FR-005: feed the 1 Hz runtime power state into the DeviceModel
   // (Fail -> Error; FR-009: recovery only by reset/reboot). Call after
@@ -48,7 +49,7 @@ class Diagnostics {
 
   // FR-002 check set size. Public: presenters size their gather buffers
   // from it (#90) instead of duplicating the constant.
-  static constexpr size_t kMaxChecks = 5;
+  static constexpr size_t kMaxChecks = 7;
 
  private:
   static constexpr unsigned long kHx711WaitMs = 1000;   // FR-006 wait_ready
@@ -59,6 +60,7 @@ class Diagnostics {
   CheckResult checkPower(PowerSense &power);
   CheckResult checkHx711(ILoadCell &loadcell);
   CheckResult checkMotor(IMotion &motion);
+  CheckResult checkEndstop(CheckId id, bool pressedHigh);  // M3 T013
   void record(const CheckResult &result);
   void dispatchTracked(DeviceEvent event, uint16_t code = 0);
   void printCheck(const CheckResult &result);

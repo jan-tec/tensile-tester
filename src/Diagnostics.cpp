@@ -49,7 +49,8 @@ const char *resetReasonName(esp_reset_reason_t reason) {
 }  // namespace
 
 void Diagnostics::runBootSelfTest(Settings &settings, ILoadCell &loadcell,
-                                  IMotion &motion, PowerSense &power) {
+                                  IMotion &motion, PowerSense &power,
+                                  Endstops &endstops) {
   Serial.print(F("BOOT fw="));
   Serial.print(kFwVersion);
   Serial.print(F(" git="));
@@ -63,6 +64,11 @@ void Diagnostics::runBootSelfTest(Settings &settings, ILoadCell &loadcell,
   record(checkPower(power));
   record(checkHx711(loadcell));
   record(checkMotor(motion));
+  // M3 T013: endstop boot levels from the begin() snapshot (COM+NC:
+  // idle LOW; HIGH = pressed or broken wire - WARN only, spec A2: a
+  // carriage legitimately parked on a switch is operator judgment).
+  record(checkEndstop(CheckId::Endstop1, endstops.bootBottom()));
+  record(checkEndstop(CheckId::Endstop2, endstops.bootTop()));
   dispatchTracked(DeviceEvent::SelfTestDone);
 
   if (model_.faultCode() != 0) {
@@ -216,6 +222,28 @@ CheckResult Diagnostics::checkMotor(IMotion &motion) {
   if (!sawDisabled || !sawEnabled) {
     // Software/driver state did not follow the EN toggle.
     result.status = CheckStatus::Fail;
+  }
+  result.elapsedMs = millis() - start;
+  return result;
+}
+
+CheckResult Diagnostics::checkEndstop(CheckId id, bool pressedHigh) {
+  const uint32_t start = millis();
+  CheckResult result;
+  result.id = id;
+  result.measurement = pressedHigh ? 1.0f : 0.0f;
+
+  if (pressedHigh) {
+    // FR-007 / spec A2: NC wiring reads LOW when open. HIGH at boot is
+    // "pressed or broken wire" - WARN with the stable code, never FAIL
+    // (an operator may have parked the carriage on the switch; the
+    // homing instant-trigger rule is the real guard). record() maps a
+    // WARN's code into the log only, never into the DeviceModel.
+    result.status = CheckStatus::Warn;
+    result.errorCode = ErrorCode::EndstopPressedOrBroken;
+  } else {
+    result.status = CheckStatus::Ok;
+    result.errorCode = ErrorCode::None;
   }
   result.elapsedMs = millis() - start;
   return result;

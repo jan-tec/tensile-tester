@@ -25,6 +25,8 @@ class LoadCell : public ILoadCell {
 
   bool isReady() override;
   float forceNewton() override;
+  // Pre-filter snapshot of the last poll() sample (M3 FR-003, D6).
+  float rawForceNewton() override;
   bool calibrationValid() override;
   float calibrationFactor() override;
   bool waitReady(unsigned long timeoutMs) override;
@@ -61,6 +63,7 @@ class LoadCell : public ILoadCell {
 
   unsigned long lastSampleMs_ = 0;
   float forceNewton_ = 0.0f;
+  float rawForceNewton_ = 0.0f;  // pre-filter snapshot (M3 FR-003)
   bool ready_ = false;
   bool calibrationValid_ = false;
   float calibrationFactor_ = Settings::kDefaultCalibrationFactor;  // default until begin() loads NVS

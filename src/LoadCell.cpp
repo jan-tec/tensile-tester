@@ -42,6 +42,10 @@ float LoadCell::forceNewton() {
   return forceNewton_;
 }
 
+float LoadCell::rawForceNewton() {
+  return rawForceNewton_;
+}
+
 bool LoadCell::waitReady(unsigned long timeoutMs) {
   return scale_.wait_ready_timeout(static_cast<unsigned int>(timeoutMs));
 }
@@ -81,6 +85,7 @@ void LoadCell::poll() {
       (static_cast<float>(rawReading) - scale_.get_offset()) /
       scale_.get_scale();
   const float measuredForceNewton = (massGrams / 1000.0f) * kGravity;
+  rawForceNewton_ = measuredForceNewton;  // pre-filter snapshot (M3 FR-003)
   forceNewton_ += (measuredForceNewton - forceNewton_) * kFilterAlpha;
 }
 

@@ -35,6 +35,12 @@ struct ILoadCell {
   virtual bool isReady() = 0;
   virtual float forceNewton() = 0;
 
+  // Pre-filter force snapshot of the last poll() sample (M3 FR-003:
+  // BreakDetector input). NOT rawSample(): that issues a second blocking
+  // read and desyncs the 10 Hz cadence - this is the same sample the
+  // filter consumed, zero extra HX711 traffic.
+  virtual float rawForceNewton() = 0;
+
   // Selftest accessors (M1 FR-006): explicit-timeout wait_ready and a
   // single raw 24-bit sample. Independent of the isReady() state, which
   // belongs to begin()/poll(); the selftest reports via CheckResult.

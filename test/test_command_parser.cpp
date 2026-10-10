@@ -248,6 +248,78 @@ void test_lang_is_not_a_motion_command(void) {
   TEST_ASSERT_FALSE(isMotionCommand("lang de"));
 }
 
+// #121 (M3-T007): the test-cycle commands. Exact-match semantics are pinned
+// explicitly (home / "home top" / test resolve; glued or wrong-case spellings
+// do NOT), because commandFromName runs before the value-prefix parsers -
+// "test 5" must stay Unknown via exact match, not be swallowed by the
+// testspeed/testarm/testdrop value parsers (#42 word-boundary quirk stays).
+void test_m3_command_names_exact(void) {
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(Command::Home),
+                        static_cast<int>(commandFromName("home")));
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(Command::HomeTop),
+                        static_cast<int>(commandFromName("home top")));
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(Command::Test),
+                        static_cast<int>(commandFromName("test")));
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(Command::Home),
+                        static_cast<int>(commandFromName("  home  ")));
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(Command::Unknown),
+                        static_cast<int>(commandFromName("hometop")));
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(Command::Unknown),
+                        static_cast<int>(commandFromName("Home")));
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(Command::Unknown),
+                        static_cast<int>(commandFromName("test 5")));
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(Command::Unknown),
+                        static_cast<int>(commandFromName("testdata")));
+}
+
+// M1 FR-009: the new commands drive the motion system and must be rejected
+// in the Error state through isMotionCommand(). "testdata" (a readout) and
+// "testdata 3" must NOT be swept up by the "test" entry.
+void test_m3_motion_command_rejection(void) {
+  TEST_ASSERT_TRUE(isMotionCommand("home"));
+  TEST_ASSERT_TRUE(isMotionCommand("home top"));
+  TEST_ASSERT_TRUE(isMotionCommand("test"));
+  TEST_ASSERT_FALSE(isMotionCommand("testdata"));
+  TEST_ASSERT_FALSE(isMotionCommand("testdata 3"));
+  TEST_ASSERT_FALSE(isMotionCommand("hometop"));
+}
+
+// #121: `data <from>` resumes a sample dump at an index - unsigned integer
+// only (no sign, no decimal point, no trailing junk), whole token consumed,
+// same dispatch grammar as the value commands (#42 word boundary).
+void test_parse_command_index_basic(void) {
+  uint32_t index = 99;
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(ParseResult::Ok),
+                        static_cast<int>(parseCommandIndex("data 5", "data", &index)));
+  TEST_ASSERT_EQUAL_UINT32(5, index);
+  index = 99;
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(ParseResult::Ok),
+                        static_cast<int>(parseCommandIndex("data 0", "data", &index)));
+  TEST_ASSERT_EQUAL_UINT32(0, index);
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(ParseResult::Ok),
+                        static_cast<int>(parseCommandIndex("data 42 ", "data", &index)));
+  TEST_ASSERT_EQUAL_UINT32(42, index);
+}
+
+void test_parse_command_index_invalid(void) {
+  uint32_t index = 7;
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(ParseResult::InvalidValue),
+                        static_cast<int>(parseCommandIndex("data -1", "data", &index)));
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(ParseResult::InvalidValue),
+                        static_cast<int>(parseCommandIndex("data abc", "data", &index)));
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(ParseResult::InvalidValue),
+                        static_cast<int>(parseCommandIndex("data 1.5", "data", &index)));
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(ParseResult::InvalidValue),
+                        static_cast<int>(parseCommandIndex("data 3junk", "data", &index)));
+  // bare prefix: unknown-command path (help), not an invalid value
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(ParseResult::NotACommand),
+                        static_cast<int>(parseCommandIndex("data", "data", &index)));
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(ParseResult::NotACommand),
+                        static_cast<int>(parseCommandIndex("datax 3", "data", &index)));
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(ParseResult::NotACommand),
+                        static_cast<int>(parseCommandIndex("pos", "data", &index)));
+}
+
 void runCommandParserTests() {
   RUN_TEST(test_command_from_name_exact);
   RUN_TEST(test_command_from_name_trims_whitespace);
@@ -271,4 +343,8 @@ void runCommandParserTests() {
   RUN_TEST(test_parse_locale_after_command_unknown_locale_is_invalid);
   RUN_TEST(test_parse_locale_after_command_prefix_mismatch);
   RUN_TEST(test_lang_is_not_a_motion_command);
+  RUN_TEST(test_m3_command_names_exact);
+  RUN_TEST(test_m3_motion_command_rejection);
+  RUN_TEST(test_parse_command_index_basic);
+  RUN_TEST(test_parse_command_index_invalid);
 }

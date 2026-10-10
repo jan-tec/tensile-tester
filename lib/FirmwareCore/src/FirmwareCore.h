@@ -81,6 +81,9 @@ enum class Command {
   CalZero,  // "cal_zero"
   JogUp,    // "jog up"
   JogDown,  // "jog down"
+  Home,     // "home" - staged homing (M3 FR-001)
+  HomeTop,  // "home top" - top positioning, no datum (M3 FR-008)
+  Test,     // "test" - run the tensile test cycle (M3 FR-002)
 };
 
 Command commandFromName(const char* name);
@@ -106,6 +109,14 @@ enum class ParseResult {
 // non-matching tokens yield NotACommand (legacy unknown-command fallthrough).
 ParseResult parseCommandValue(const char* command, const char* prefix,
                               float* value);
+
+// Parse the UNSIGNED integer after `prefix` (`data <from>` sample-dump
+// resume, M3 FR-005). Same dispatch grammar as parseCommandValue (word
+// boundary after the prefix, whole trimmed token consumed), but integer
+// only: a sign or decimal point makes the token InvalidValue, as does
+// anything above UINT32_MAX. Bare prefix / prefix mismatch -> NotACommand.
+ParseResult parseCommandIndex(const char* command, const char* prefix,
+                              uint32_t* index);
 
 // ---------------------------------------------------------------------------
 // Locale model (pure). M2 FR-002 / TC-001: the UI locale selects the string

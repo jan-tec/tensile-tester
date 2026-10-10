@@ -116,6 +116,15 @@ Command commandFromName(const char* name) {
   if (strcmp(trimmed, "jog down") == 0) {
     return Command::JogDown;
   }
+  if (strcmp(trimmed, "home") == 0) {
+    return Command::Home;
+  }
+  if (strcmp(trimmed, "home top") == 0) {
+    return Command::HomeTop;
+  }
+  if (strcmp(trimmed, "test") == 0) {
+    return Command::Test;
+  }
   return Command::Unknown;
 }
 
@@ -141,6 +150,9 @@ bool isMotionCommand(const char* command) {
     case Command::Stop:
     case Command::JogUp:
     case Command::JogDown:
+    case Command::Home:    // M3 FR-009: homing drives the motor
+    case Command::HomeTop:
+    case Command::Test:
       return true;
     default:
       break;
@@ -188,6 +200,33 @@ ParseResult parseCommandValue(const char* command, const char* prefix,
     return ParseResult::InvalidValue;
   }
   *value = parsed;
+  return ParseResult::Ok;
+}
+
+ParseResult parseCommandIndex(const char* command, const char* prefix,
+                              uint32_t* index) {
+  if (!startsWithCommandPrefix(command, prefix)) {
+    return ParseResult::NotACommand;
+  }
+  char token[48];
+  trimCopy(command + strlen(prefix), token, sizeof(token));
+  if (token[0] == '\0') {
+    return ParseResult::NotACommand;
+  }
+  // Unsigned integer only. All-digits precheck before strtoull: strtoul
+  // would eat a leading sign ("data -1"), and its clamped overflow
+  // behaviour differs between 32-bit (ESP) and 64-bit (host) unsigned long,
+  // so magnitude is checked against the 64-bit range explicitly.
+  for (const char* p = token; *p != '\0'; ++p) {
+    if (*p < '0' || *p > '9') {
+      return ParseResult::InvalidValue;
+    }
+  }
+  const unsigned long long parsed = strtoull(token, nullptr, 10);
+  if (parsed > UINT32_MAX) {
+    return ParseResult::InvalidValue;
+  }
+  *index = static_cast<uint32_t>(parsed);
   return ParseResult::Ok;
 }
 

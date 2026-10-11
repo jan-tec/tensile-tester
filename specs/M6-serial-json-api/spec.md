@@ -1,6 +1,6 @@
 # Feature Specification: M6 - Structured Serial API (JSON Lines)
 
-Status: In progress (T001-T004 shipped #185-#188; T005-T008 open #181-#184) | Rigor: Spec-Anchored | Created: 2026-10-07 | Depends on: M2
+Status: Done (2026-10-11, #175 closed; T001-T008 shipped #185-#194 + #192/#194) | Rigor: Spec-Anchored | Created: 2026-10-07 | Depends on: M2
 (English message strings), M3, M4 (command surface), M5 (calibration
 commands)
 

@@ -1,6 +1,6 @@
 # Feature Specification: M3 - Automated Tensile Test Cycle
 
-Status: Draft | Rigor: Spec-Anchored | Created: 2026-10-07 | Depends on: M1, #71 (FastAccelStepper)
+Status: In progress (implemented; close-out #156 bench matrix) | Rigor: Spec-Anchored | Created: 2026-10-07 | Depends on: M1, #71 (FastAccelStepper)
 
 **Goal:** One-command tensile test: home on the lower endstop, pull the sample
 upward at a configured test speed until it breaks, detect the break from the

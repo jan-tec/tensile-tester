@@ -11,7 +11,7 @@ plan.md = HOW, tasks.md = issue backlog). **One task = one issue = one PR.**
 | **M3** | Automated tensile test cycle | active | M1, #71 | `specs/M3-tensile-test-cycle/` |
 | **M4** | Constant-force hold | planned | M3 | `specs/M4-constant-force-hold/` |
 | **M5** | Load cell calibration | planned | M3, M6 | `specs/M5-loadcell-calibration/` |
-| **M6** | Serial JSON API | active (T001-T004 done) | M2, M3 | `specs/M6-serial-json-api/` |
+| **M6** | Serial JSON API | done (2026-10-11, #185-#194) | M2, M3 | `specs/M6-serial-json-api/` |
 | **M7** | Web UI redesign | done (2026-10-10, #172/#173) | - | `specs/M7-web-ui-redesign/` |
 | **M8** | LED status language (GPIO2) | active | M1, M3, #76, #128 | `specs/M8-led-status/` |
 
@@ -29,7 +29,7 @@ GitHub Issues are **enabled** on this repo (2026-08-20, via owner-level API
 | M3 | #118-#157 (T003-T014 + NQP/RED stream) |
 | M8 | #132-#136 (T001-T004) |
 | M7 | #167-#172 (US2/US3 + spec + impl) |
-| M6 | #177-#184 (T001-T008; T001-T004 closed) |
+| M6 | #177-#184 (T001-T008, all closed) |
 | Quirks | #41-#43 (NQP stream, grows as implementation runs) |
 
 **NQP (No-Quirk Policy)**: every quirk found during implementation is pinned

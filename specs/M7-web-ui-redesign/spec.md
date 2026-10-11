@@ -1,6 +1,6 @@
 # Feature Specification: M7 - Web UI Redesign
 
-Status: In progress | Rigor: Spec-First | Created: 2026-10-07 | Updated:
+Status: Done (2026-10-10 #172/#173; Phase C remainder rides on M4/M5) | Rigor: Spec-First | Created: 2026-10-07 | Updated:
 2026-10-11 | Priority: Low (owner re-affirmed 2026-10-11: tear workflow
 first-class, #167)
 (owner) | Depends on: M3, M4, M5, M6 (cycles + command grammar; M3 command

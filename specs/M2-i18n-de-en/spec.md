@@ -1,6 +1,6 @@
 # Feature Specification: M2 - i18n DE/EN, English Primary
 
-Status: Planned | Rigor: Spec-Anchored | Created: 2026-08-20 | Depends on: M1
+Status: Done (2026-08, #31-#38) | Rigor: Spec-Anchored | Created: 2026-08-20 | Depends on: M1
 
 **Goal:** Bilingual (DE/EN) user interface. The device **starts in
 English**; the operator can switch to German (persisted). In this milestone

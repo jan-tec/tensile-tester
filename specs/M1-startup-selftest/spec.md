@@ -1,6 +1,6 @@
 # Feature Specification: M1 - Startup Selftest & Health Diagnostics
 
-Status: Planned | Rigor: Spec-Anchored | Created: 2026-08-20 | Depends on: M0
+Status: In progress (T008 #27 hardware divider + T011 #30 target verify open) | Rigor: Spec-Anchored | Created: 2026-08-20 | Depends on: M0
 
 **Goal:** On startup the device determines which peripherals are connected
 and healthy (load cell, power supply, motor driver, board) and reports

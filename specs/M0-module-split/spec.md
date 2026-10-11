@@ -1,6 +1,6 @@
 # Feature Specification: M0 - Module Split
 
-Status: Planned | Rigor: Spec-Anchored | Created: 2026-08-20 | Depends on: -
+Status: Done (2026-08, #8-#19) | Rigor: Spec-Anchored | Created: 2026-08-20 | Depends on: -
 
 **Goal:** Split `src/main.cpp` (1044 lines, monolith incl. inlined Web UI)
 into single-responsibility modules following 2026 large-project best

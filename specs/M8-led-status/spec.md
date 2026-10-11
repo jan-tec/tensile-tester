@@ -1,6 +1,6 @@
 # Feature Specification: M8 - LED Status Language (GPIO2)
 
-Status: Draft | Rigor: Spec-Anchored | Created: 2026-10-10 | Depends on: M1 (DeviceModel), M3 (TestCycleModel, endstop inputs #76) | Issue: #128
+Status: In progress (code done; SC-001/002 operator passes pending, #136) | Rigor: Spec-Anchored | Created: 2026-10-10 | Depends on: M1 (DeviceModel), M3 (TestCycleModel, endstop inputs #76) | Issue: #128
 
 **Goal:** The ESP32 DevKit onboard LED (GPIO2) becomes a visual logging
 channel: blink patterns encode machine state and hardware events so the

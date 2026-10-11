@@ -21,6 +21,7 @@ extern void runSampleDataTests();
 extern void runUiHtmlTests();
 extern void runLedPatternTests();
 extern void runApiResponseTests();
+extern void runApiDumpTests();
 
 void setUp(void) {}
 void tearDown(void) {}
@@ -43,5 +44,6 @@ int main(void) {
   runUiHtmlTests();
   runLedPatternTests();
   runApiResponseTests();
+  runApiDumpTests();
   return UNITY_END();
 }

@@ -172,4 +172,32 @@ inline int formatApiStateJson(const ApiStateSnapshot& s, char* out,
   return b.finish();
 }
 
+// M6 FR-005 (TC-004, #179): the `data` bulk-dump framing. The M3 CSV
+// grammar ( TestData.h formatCsvChunk) stays byte-identical and is the
+// BODY; these lines wrap it - header first (reply to the `data`
+// command), footer after the END marker. Newlines belong to the
+// transport. `truncated` renders 0|1 for symmetry with the CSV END
+// marker; `format` tags the body grammar so parsers can dispatch.
+inline int formatApiDumpHeader(const ApiStateSnapshot& s, size_t count,
+                               size_t fromIndex, char* out, size_t cap) {
+  api_detail::LineBuilder b(out, cap);
+  b.put("{\"ok\":true,\"data\":{\"dump\":\"begin\",\"count\":%u,\"from\":%u,"
+        "\"format\":\"csv-m3\"},\"state\":",
+        static_cast<unsigned>(count), static_cast<unsigned>(fromIndex));
+  api_detail::putState(b, s);
+  b.put("}");
+  return b.finish();
+}
+
+inline int formatApiDumpFooter(const ApiStateSnapshot& s, size_t sent,
+                               bool truncated, char* out, size_t cap) {
+  api_detail::LineBuilder b(out, cap);
+  b.put("{\"ok\":true,\"data\":{\"dump\":\"end\",\"sent\":%u,"
+        "\"truncated\":%d},\"state\":",
+        static_cast<unsigned>(sent), truncated ? 1 : 0);
+  api_detail::putState(b, s);
+  b.put("}");
+  return b.finish();
+}
+
 #endif  // API_RESPONSE_H

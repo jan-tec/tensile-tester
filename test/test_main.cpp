@@ -24,6 +24,7 @@ extern void runApiResponseTests();
 extern void runApiDumpTests();
 extern void runApiCommandsTests();
 extern void runManualMoveGuardTests();
+extern void runHoldControllerTests();
 
 void setUp(void) {}
 void tearDown(void) {}
@@ -49,5 +50,6 @@ int main(void) {
   runApiDumpTests();
   runApiCommandsTests();
   runManualMoveGuardTests();
+  runHoldControllerTests();
   return UNITY_END();
 }

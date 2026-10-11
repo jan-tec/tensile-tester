@@ -11,7 +11,7 @@ list changes, sync the GitHub issues in the same PR (AGENTS.md).
       Settings; parser entries `chold/choltol/choldclear` (value
       grammar, signed setpoint). Host: clamp + parser tests RED-first.
       Issue: M4-T001
-- [ ] **T002** HoldController pure FSM (D2, TC-001): states, approach
+- [x] **T002** HoldController pure FSM (D2, TC-001): states, approach
       threshold = 50% |setpoint|, Lost with 2-tick confirm (D5), end
       reasons time/stop/limit/lost/fault, duration accounting.
       Host: transition-table tests incl. collapse + limit.

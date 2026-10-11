@@ -80,9 +80,6 @@
   MSG(WebUiUrl, \
       "Web UI: http://", \
       "Weboberflaeche: http://")  /* prefix, "http://" + IP appended */ \
-  MSG(WebCommand, \
-      "Web command: ", \
-      "Web-Kommando: ")  /* prefix, the received command appended */ \
   MSG(CmdParamMissing, "Parameter 'cmd' missing.", "Parameter 'cmd' fehlt.") \
   /* Driver and motion replies */ \
   MSG(DriversEnabled, "Both drivers enabled.", "Beide Treiber aktiviert.") \
@@ -113,15 +110,9 @@
   MSG(PositionPrinted, \
       "Position printed to the serial monitor.", \
       "Position im Serial Monitor ausgegeben.") \
-  MSG(PositionSteps, \
-      "Position [steps]: ", \
-      "Position [Schritte]: ")  /* prefix, step count appended */ \
   MSG(ForceCurrent, "Current force: ", "Kraft aktuell: ")  /* prefix, newtons appended */ \
-  MSG(StatusForceLabel, " | Force [N]: ", " | Kraft [N]: ") \
-  MSG(StatusTravelLabel, " | Travel [mm]: ", " | Weg [mm]: ") \
   MSG(ForceUnavailable, "Force: n/a (HX711 not ready).", "Kraft: n/a (HX711 nicht bereit).") \
   MSG(Hx711NotReady, "HX711 not ready.", "HX711 nicht bereit.") \
-  MSG(NotAvailable, "n/a", "n/a")  /* the "n/a" token */ \
   /* Calibration (two-step, M5 keeps this flow) */ \
   MSG(CalZeroCaptured, \
       "Zero point captured. Now attach a known weight, enter its gram value and " "run step 2.", \
@@ -183,10 +174,10 @@
       "Verfuegbare Kommandos: en, off, zero, tare, force, pos, stop, ") \
   MSG(HelpCommandsSuffix, \
       "rpm, acc, feed, move, turn, jog up, jog down, cal_zero, cal_apply, " \
-      "home, home top, test, testspeed, testarm, testdrop, data, " \
+      "help, home, home top, test, testspeed, testarm, testdrop, data, " \
       "testdata, homeseek, hometimeout, ends, lang", \
       "rpm, acc, feed, move, turn, jog up, jog down, cal_zero, cal_apply, " \
-      "home, home top, test, testspeed, testarm, testdrop, data, " \
+      "help, home, home top, test, testspeed, testarm, testdrop, data, " \
       "testdata, homeseek, hometimeout, ends, lang")  /* command names are locale-invariant */ \
   /* Test cycle (M3 FR-005/FR-006, T012). Composed prefix + value + the \
      existing unit suffix rows - no format strings. */ \
@@ -243,9 +234,6 @@
   MSG(HomeSeekFollows, \
       "Homing seek follows the test speed.", \
       "Referenzfahrt folgt der Testgeschwindigkeit.") \
-  MSG(PositionDatumUnknown, \
-      "Position datum unknown - run home first.", \
-      "Position Nullpunkt unbekannt - zuerst Referenzfahrt.") \
   MSG(ValueMustBePositive, \
       "Value must be greater than 0.", \
       "Wert muss groesser als 0 sein.")

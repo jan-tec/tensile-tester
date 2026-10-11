@@ -163,6 +163,35 @@ inline int formatApiEvent(const char* event, const ApiStateSnapshot& s,
   return b.finish();
 }
 
+// M6-T006 (#182): the data fragment for text replies - the localized
+// response string wrapped and escaped as {"reply":"..."} so every
+// success envelope carries its human text machine-safely.
+inline int formatApiReplyData(const char* text, char* out, size_t cap) {
+  api_detail::LineBuilder b(out, cap);
+  b.put("{\"reply\":\"");
+  b.putEscaped(text != nullptr ? text : "");
+  b.put("\"}");
+  return b.finish();
+}
+
+// M6-T006 (plan D3): the web-command echo event (serial emitter #2) -
+// one JSON line instead of the three prose lines. Command and message
+// are escaped; state rides last as in every line.
+inline int formatApiWebCommandEvent(const char* command, bool ok,
+                                    const char* message,
+                                    const ApiStateSnapshot& s, char* out,
+                                    size_t cap) {
+  api_detail::LineBuilder b(out, cap);
+  b.put("{\"event\":\"web_command\",\"command\":\"");
+  b.putEscaped(command != nullptr ? command : "");
+  b.put("\",\"ok\":%s,\"message\":\"", ok ? "true" : "false");
+  b.putEscaped(message != nullptr ? message : "");
+  b.put("\",\"state\":");
+  api_detail::putState(b, s);
+  b.put("}");
+  return b.finish();
+}
+
 // The state object alone (FR-002 single snapshot; also the periodic
 // {"event":"status"} payload).
 inline int formatApiStateJson(const ApiStateSnapshot& s, char* out,

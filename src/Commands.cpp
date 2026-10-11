@@ -9,46 +9,8 @@ String Commands::helpText() {
   return String(msg(Msg::HelpCommandsPrefix)) + msg(Msg::HelpCommandsSuffix);
 }
 
-// M6-T005 (plan D2): the policy computes, the surface renders. This is
-// the old printPosition() body minus every Serial write - byte-identical
-// text, now a String the caller (SerialCli for `pos`, App for the
-// periodic status line) prints where it belongs.
-PosData Commands::positionData() {
-  PosData pos;
-  pos.steps = motion_.steps();
-  pos.homed = testRunner_.homed();
-  pos.posMm = motion_.positionMm();
-  pos.cellReady = loadcell_.isReady();
-  pos.forceN = loadcell_.forceNewton();
-  return pos;
-}
-
-String Commands::positionText(const PosData &pos) {
-  String text = String(msg(Msg::PositionSteps)) + pos.steps +
-                msg(Msg::StatusTravelLabel);
-  if (pos.homed) {
-    // M3 FR-006: mm are only meaningful upward from the bottom datum.
-    text += String(pos.posMm, 3);
-  } else {
-    text += msg(Msg::NotAvailable);
-  }
-  text += msg(Msg::StatusForceLabel);
-  if (pos.cellReady) {
-    text += String(pos.forceN, 2);
-  } else {
-    // HX711 not ready: no force reading (M1 T005)
-    text += msg(Msg::NotAvailable);
-  }
-  text += "\n";
-  if (!pos.homed) {
-    text += msg(Msg::PositionDatumUnknown);
-    text += "\n";
-  }
-  return text;
-}
-
-// M6 FR-002 (plan D2): one snapshot per reply/event - T006's envelope
-// rendering consumes this; never read members twice for one line.
+// M6 FR-002 (plan D2): one snapshot per reply/event - the envelope and
+// event renderers consume this; never read members twice for one line.
 ApiStateSnapshot Commands::stateSnapshot() {
   ApiStateSnapshot s{};
   s.posMm = motion_.positionMm();
@@ -148,10 +110,10 @@ void Commands::pollDump() {
 }
 
 bool Commands::execute(String command, String &response, ErrorCode &error,
-                       PosData &pos) {
+                       ApiReplyMeta &meta) {
   command.trim();
   error = ErrorCode::None;
-  pos = PosData{};
+  meta = ApiReplyMeta{};  // kind defaults to Reply
   if (command.isEmpty()) {
     response = msg(Msg::EmptyCommand);
     error = ErrorCode::EmptyCommand;
@@ -349,12 +311,22 @@ bool Commands::execute(String command, String &response, ErrorCode &error,
   }
 
   if (named == Command::Pos) {
-    // M6-T005 (plan D2): the policy computes, the surface renders - the
-    // block goes out via PosData; response stays the ack line so the
-    // web path keeps its byte-identical HTTP body (FR-006).
-    pos = positionData();
-    pos.valid = true;
+    // M6-T006 (D2/D6): steps ride the data fragment; travel/force live
+    // in the state object every envelope carries. response stays the
+    // ack line so the web path keeps its byte-identical HTTP body
+    // (FR-006).
+    meta.kind = ApiDataKind::Pos;
+    meta.steps = motion_.steps();
     response = msg(Msg::PositionPrinted);
+    return true;
+  }
+
+  if (command == "help") {
+    // M6-T006 (FR-003/D6): help is a real command now - the serial
+    // envelope carries the array (formatApiHelpData via the surface);
+    // response keeps the localized prose for the web HTTP path.
+    meta.kind = ApiDataKind::Help;
+    response = helpText();
     return true;
   }
 

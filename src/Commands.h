@@ -30,17 +30,18 @@ class Diagnostics;
 class Settings;
 class TestRunner;
 
-// M6-T005 (plan D2, #181): position data computed by the policy, rendered
-// by the SURFACE (serial CLI / App today; the JSON envelope in T006).
-// `valid` is set only by the `pos` command - callers use it to decide
-// whether a position block belongs into the output.
-struct PosData {
-  bool valid = false;
-  long steps = 0;
-  bool homed = false;
-  float posMm = 0.0f;   // meaningful only when homed (M3 FR-006)
-  bool cellReady = false;
-  float forceN = 0.0f;  // meaningful only when cellReady
+// M6-T006 (plan D2/D6, #182): what the surface renders as the envelope's
+// data fragment. The POLICY picks the kind, the SURFACE renders it -
+// SerialCli maps Reply -> formatApiReplyData(response), Pos ->
+// {"steps":N} (the rest of the position lives in the state object),
+// Help -> formatApiHelpData (the documented >256 B exception).
+enum class ApiDataKind { Reply, Pos, Help };
+
+// M6 out-struct (T005 introduced PosData; T006 slims it to what the
+// envelope needs - position text rendering is gone with the prose).
+struct ApiReplyMeta {
+  ApiDataKind kind = ApiDataKind::Reply;  // success data shape
+  long steps = 0;                         // ApiDataKind::Pos
 };
 
 class Commands {
@@ -56,27 +57,20 @@ class Commands {
   // Runs one command (trimmed or untrimmed) and fills response with the
   // localized status text (M2: all replies resolve through Text's msg();
   // the locale is switched with `lang <en|de>`). Returns true on success.
-  // The serial caller prints helpText() on false; the Web API maps false
-  // to HTTP 400.
+  // The Web API maps false to HTTP 400.
   //
   // M6-T005 (plan D1, #181): error receives the stable machine code for
   // every failure return (ErrorCode::None on success; a fault-code
-  // rejection surfaces the 0x01xx..0x05xx fault). The serial path will
-  // render it into the JSON envelope (T006); the Web path ignores it -
-  // its contract is the HTTP body alone (FR-006 byte-identical).
-  // pos receives the position block data (valid=true only for `pos`).
+  // rejection surfaces the 0x01xx..0x05xx fault). The serial path
+  // renders it into the JSON envelope; the Web path ignores it - its
+  // contract is the HTTP body alone (FR-006 byte-identical).
+  // M6-T006: meta picks the success data fragment kind (D2/D6).
   bool execute(String command, String &response, ErrorCode &error,
-               PosData &pos);
-
-  // M6-T005 (plan D2, #181): the policy computes, the surface renders.
-  // Replaces the old printPosition() - Commands no longer writes to
-  // Serial; SerialCli/App render positionText(positionData()).
-  PosData positionData();
-  static String positionText(const PosData &pos);
+               ApiReplyMeta &meta);
 
   // M6 FR-002 (plan D2): single state snapshot for the serial envelope;
-  // consumed by the T006 reply/event rendering (one snapshot per reply,
-  // never a mid-command tear).
+  // every reply/event renders exactly one of these (one snapshot per
+  // line, never a mid-command tear).
   ApiStateSnapshot stateSnapshot();
 
   // CSV dump pump (M3 D8): call from App::loop(); writes at most one
@@ -92,8 +86,9 @@ class Commands {
     return event;
   }
 
-  // Help line printed by the serial path after an unknown command
-  // (localized pair from Text, M2-T003).
+  // Help line (M2-T003): the localized prose list - the reply text of
+  // the `help` command (web HTTP path) and the array's human twin; the
+  // serial envelope carries formatApiHelpData instead (D6).
   static String helpText();
 
   // Jog travel for "jog up" / "jog down" (full spindle stroke); the jog

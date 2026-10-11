@@ -179,15 +179,18 @@ void WebUi::handleCommandApi() {
 
   String response;
   const String command = server_.arg("cmd");
-  // M6-T005 (plan D1): the web path ignores the error code and the pos
-  // data - its contract is the HTTP body alone (FR-006 byte-identical);
-  // the T006 event echo is the serial-side consumer.
+  // M6-T005 (plan D1): the web path ignores the error code and the meta
+  // - its contract is the HTTP body alone (FR-006 byte-identical).
   ErrorCode error;
-  PosData pos;
-  const bool ok = commands_.execute(command, response, error, pos);
-  Serial.print(msg(Msg::WebCommand));
-  Serial.println(command);
-  Serial.println(response);
+  ApiReplyMeta meta;
+  const bool ok = commands_.execute(command, response, error, meta);
+  // M6-T006 (plan D3): the serial echo of a web command is one JSON
+  // event line (was: three prose lines) - SC-001 keeps the serial line
+  // JSON-only; the HTTP body below is unchanged.
+  char echo[512];
+  formatApiWebCommandEvent(command.c_str(), ok, response.c_str(),
+                           commands_.stateSnapshot(), echo, sizeof(echo));
+  Serial.println(echo);
   server_.send(ok ? 200 : 400, "application/json", jsonMessage(ok, response));
 }
 

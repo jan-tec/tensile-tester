@@ -38,6 +38,10 @@ class Motion : public IMotion {
   // startMoveTo behavior).
   void startMoveToSteps(long targetSteps) override;
 
+  // #158: sign of (target - current) while a moveTo is in flight - the
+  // plain-move endstop guard needs the travel direction. 0 when idle.
+  int8_t moveDirection() override;
+
   // Continuous run at the current speed (runForward/runBackward, M3
   // FR-001 homing seeks); enables the driver first like startMoveToSteps.
   void startContinuous(int direction) override;

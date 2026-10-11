@@ -1,5 +1,6 @@
 #include "App.h"
 
+#include "ManualMoveGuard.h"
 #include "Text.h"
 
 void App::begin() {
@@ -137,6 +138,17 @@ void App::loop() {
                    diagnostics_.model().state() == DeviceState::Error);
   reportRunnerEvents();
   commands_.pollDump();  // M3-T012: CSV dump pump (D8 chunking)
+
+  // #158 (M3 FR-009): plain (non-runner) moves respect the endstops -
+  // level-triggered forceStop in the direction of travel. Checked AFTER
+  // the runner tick so an active homing/cycle keeps its own endstop
+  // handling (a homing back-off must be able to LEAVE a pressed switch);
+  // the guard never fires for runner-driven motion.
+  if (!testRunner_.active() && motion_.isRunning() &&
+      manualMoveBlockedByEndstop(motion_.moveDirection(),
+                                 endstops_.bottom(), endstops_.top())) {
+    motion_.forceStop();
+  }
 
   // FR-009: on the transition into Error the driver must be off
   // (boot faults already disable it in Diagnostics; this covers the

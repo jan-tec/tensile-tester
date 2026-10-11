@@ -80,6 +80,16 @@ As an operator, I am protected against endstop faults and runtime power loss.
   position zero stays the bottom datum (FR-006); `home top` exists for
   sample insertion at upper positions and full-travel verification, and
   reports the reached travel span when the bottom datum is known.
+- **FR-009 (Manual move endstop guard + motion exclusivity, #158):**
+  plain moves (`move`, `turn`, `jog up/down`) respect the endstops: while
+  such a move is in flight, a debounced endstop level in the direction of
+  travel (bottom switch for downward, top switch for upward) force-stops
+  it - level-triggered, so a carriage resting on the datum switch can
+  still move up (clearing) but never grind further down. Manual motion is
+  also exclusive: move/jog/turn are rejected (StateConflict) while a
+  homing/test/dump is active, and home/test are rejected while a plain
+  move is running; the runner's own endstop handling (FR-001 seeks, the
+  FR-002 limit stop) is unchanged.
 - **FR-002 (Test cycle):** `test` performs: (1) home on Endstop 1 if not
   already homed this session (an existing datum is kept - the operator may
   have inserted the sample after homing; #81), (2) arm

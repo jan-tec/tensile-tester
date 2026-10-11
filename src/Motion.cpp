@@ -92,6 +92,17 @@ void Motion::startMoveToSteps(long targetSteps) {
   stepper_->moveTo(static_cast<int32_t>(targetSteps));
 }
 
+int8_t Motion::moveDirection() {
+  if (stepper_ == nullptr || !stepper_->isRunning()) {
+    return 0;
+  }
+  // In keep-running mode (startContinuous) targetPos() is not updated -
+  // callers exclude runner motion before consulting this (#158 guard).
+  const int32_t target = stepper_->targetPos();
+  const int32_t current = stepper_->getCurrentPosition();
+  return target > current ? 1 : (target < current ? -1 : 0);
+}
+
 void Motion::startContinuous(int direction) {
   if (stepper_ == nullptr) {
     return;

@@ -24,6 +24,11 @@ struct IMotion {
 
   virtual void startMoveToSteps(long targetSteps) = 0;
 
+  // #158: direction of the in-flight moveTo command: +1 up, -1 down,
+  // 0 when idle (or exactly at target). Only meaningful while
+  // isRunning(); continuous runner motion is excluded by the caller.
+  virtual int8_t moveDirection() = 0;
+
   // Continuous move at the current speed in the given direction until
   // stop()/forceStop()/disable() (homing seeks; M3 FR-001).
   virtual void startContinuous(int direction) = 0;

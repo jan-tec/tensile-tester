@@ -60,6 +60,20 @@ bool Commands::testConfigChangeAllowed(String &response,
   return true;
 }
 
+bool Commands::plainMoveAllowed(String &response, ErrorCode &error) const {
+  if (testRunner_.active()) {
+    response = msg(Msg::CycleBusy);
+    error = ErrorCode::StateConflict;
+    return false;
+  }
+  if (testRunner_.dumpInProgress()) {
+    response = msg(Msg::DumpBusy);
+    error = ErrorCode::StateConflict;
+    return false;
+  }
+  return true;
+}
+
 bool Commands::applyTestConfigValue(float value, String &response,
                                     ErrorCode &error,
                                     float TestConfig::*field,
@@ -264,7 +278,9 @@ bool Commands::execute(String command, String &response, ErrorCode &error,
 
   if (named == Command::Home || named == Command::HomeTop) {
     // D11: exclusive; the D15 Error-state rejection already ran above.
-    if (testRunner_.active()) {
+    // #158: also exclusive with an in-flight plain move - the homing
+    // FSM expects to own the stepper from its first phase.
+    if (testRunner_.active() || motion_.isRunning()) {
       response = msg(Msg::CycleBusy);
       error = ErrorCode::StateConflict;
       return false;
@@ -289,7 +305,8 @@ bool Commands::execute(String command, String &response, ErrorCode &error,
   }
 
   if (named == Command::Test) {
-    if (testRunner_.active()) {
+    // #158: like home - exclusive with an in-flight plain move.
+    if (testRunner_.active() || motion_.isRunning()) {
       response = msg(Msg::CycleBusy);
       error = ErrorCode::StateConflict;
       return false;
@@ -384,6 +401,9 @@ bool Commands::execute(String command, String &response, ErrorCode &error,
   }
 
   if (named == Command::JogUp) {
+    if (!plainMoveAllowed(response, error)) {
+      return false;
+    }
     motion_.startMoveToSteps(
         static_cast<long>(motion_.steps() + spindleMmToSteps(kJogTravelMm)));
     response = msg(Msg::JogUpStarted);
@@ -391,6 +411,9 @@ bool Commands::execute(String command, String &response, ErrorCode &error,
   }
 
   if (named == Command::JogDown) {
+    if (!plainMoveAllowed(response, error)) {
+      return false;
+    }
     motion_.startMoveToSteps(
         static_cast<long>(motion_.steps() - spindleMmToSteps(kJogTravelMm)));
     response = msg(Msg::JogDownStarted);
@@ -402,6 +425,9 @@ bool Commands::execute(String command, String &response, ErrorCode &error,
     return reportInvalidValue(response, error);
   }
   if (moveResult == ParseResult::Ok) {
+    if (!plainMoveAllowed(response, error)) {
+      return false;
+    }
     motion_.startMoveToSteps(
         static_cast<long>(motion_.steps() + spindleMmToSteps(value)));
     response = String(msg(Msg::RelativeMoveStarted)) + String(value, 3) +
@@ -414,6 +440,9 @@ bool Commands::execute(String command, String &response, ErrorCode &error,
     return reportInvalidValue(response, error);
   }
   if (turnResult == ParseResult::Ok) {
+    if (!plainMoveAllowed(response, error)) {
+      return false;
+    }
     motion_.startMoveToSteps(
         static_cast<long>(motion_.steps() + outputTurnsToSteps(value)));
     response = String(msg(Msg::RelativeMoveStarted)) + String(value, 3) +

@@ -124,6 +124,13 @@ class Commands {
   // run is active (D11). True when the change may proceed.
   bool testConfigChangeAllowed(String &response, ErrorCode &error) const;
 
+  // #158 (M3 FR-009): plain moves (move/jog/turn) are exclusive with
+  // runner motion - a move during a live homing hijacks the stepper
+  // target while the FSM waits for the switch - and with a serial CSV
+  // dump (the reply would land inside the stream). True when the move
+  // may proceed.
+  bool plainMoveAllowed(String &response, ErrorCode &error) const;
+
   Settings &settings_;
   Motion &motion_;
   LoadCell &loadcell_;

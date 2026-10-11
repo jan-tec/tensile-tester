@@ -23,6 +23,7 @@ extern void runLedPatternTests();
 extern void runApiResponseTests();
 extern void runApiDumpTests();
 extern void runApiCommandsTests();
+extern void runManualMoveGuardTests();
 
 void setUp(void) {}
 void tearDown(void) {}
@@ -47,5 +48,6 @@ int main(void) {
   runApiResponseTests();
   runApiDumpTests();
   runApiCommandsTests();
+  runManualMoveGuardTests();
   return UNITY_END();
 }

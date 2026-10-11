@@ -537,6 +537,17 @@ void test_ui_csv_button_in_action_row(void) {
   TEST_ASSERT_EQUAL_UINT32(0, countInHtml("p class=\"note\"><a class=\"btn\""));
 }
 
+// Operator request 2026-10-11: the action row sits BELOW the run
+// summary pills (Max Kraft / Bruchweg / Messwerte), not between the
+// sample prompt and the summary.
+void test_ui_action_row_below_run_summary(void) {
+  const char *summary = std::strstr(INDEX_HTML, "id=\"runSummary\"");
+  const char *actions = std::strstr(INDEX_HTML, "btnrow btnrow3");
+  TEST_ASSERT_NOT_NULL(summary);
+  TEST_ASSERT_NOT_NULL(actions);
+  TEST_ASSERT_TRUE(summary < actions);
+}
+
 void runUiHtmlTests(void) {
   RUN_TEST(test_index_html_has_content);
   RUN_TEST(test_index_html_declares_language_and_charset);
@@ -555,6 +566,7 @@ void runUiHtmlTests(void) {
   RUN_TEST(test_ui_test_and_runcurve_share_a_row);
   RUN_TEST(test_ui_h1_is_jantec_atlas);
   RUN_TEST(test_ui_csv_button_in_action_row);
+  RUN_TEST(test_ui_action_row_below_run_summary);
   RUN_TEST(test_i18n_dictionary_has_both_locales);
   RUN_TEST(test_i18n_dictionary_is_complete);
   RUN_TEST(test_all_data_cmd_values_are_known_commands);

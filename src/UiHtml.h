@@ -342,16 +342,16 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
           <div class="pill"><span class="label" data-i18n="lblDatum">Datum</span><span class="value" id="datumState">-</span></div>
         </div>
         <p class="note" id="samplePrompt" hidden data-i18n="samplePrompt">Datum reached. Clamp the sample, then start the test.</p>
-        <div class="btnrow btnrow3">
-          <button data-cmd="home" type="button" data-i18n="btnHome">Home</button>
-          <button type="button" data-cmd="test" data-i18n="btnStartTest">Start test</button>
-          <a class="btn" id="csvDownload" href="/api/data" download="tensile-run.csv" data-i18n="csvDownload">Download CSV</a>
-        </div>
         <div class="status" id="runSummary">
           <div class="pill"><span class="label" data-i18n="lblPeak">Peak force</span><span class="value" id="runPeak">-</span></div>
           <div class="pill"><span class="label" data-i18n="lblBreak">Break displacement</span><span class="value" id="runBreak">-</span></div>
           <div class="pill"><span class="label" data-i18n="lblSamples">Samples</span><span class="value" id="runSamples">-</span></div>
           <div class="pill"><span class="label" data-i18n="lblTrunc">Truncated</span><span class="value" id="runTrunc">-</span></div>
+        </div>
+        <div class="btnrow btnrow3">
+          <button data-cmd="home" type="button" data-i18n="btnHome">Home</button>
+          <button type="button" data-cmd="test" data-i18n="btnStartTest">Start test</button>
+          <a class="btn" id="csvDownload" href="/api/data" download="tensile-run.csv" data-i18n="csvDownload">Download CSV</a>
         </div>
       </section>
 

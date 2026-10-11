@@ -165,20 +165,51 @@ void test_homing_seekDownTriggerAtToleranceBoundaryIsLegal() {
 }
 
 void test_homing_seekDownTriggerBelowToleranceIsInstantTrigger() {
-  // One half-step of travel below the tolerance: broken wire per FR-001 /
-  // spec A2 (a pressed-at-instant-bottom switch is indistinguishable from
-  // a broken wire and must never yield a phantom datum).
+  // Broken wire per FR-001 / spec A2 (a pressed-at-instant-bottom switch
+  // is indistinguishable from a broken wire and must never yield a
+  // phantom datum). The line sits below clearance - oneStep - the
+  // switch-repeatability allowance (0.3 mm, bench-established
+  // 2026-10-11: parked-start round trips land within ~0.05 mm of the
+  // clearance; 0.3 mm = 6x that, still ~0 travel for a broken wire).
   HomingModel m = configured();
   m.start();
   m.tick(10.0f, false, false, 0);
   m.tick(12.0f, false, false, 0);
-  m.tick(10.3125f, true, false, 10);  // down 1.6875 < 1.75
+  m.tick(11.0f, true, false, 10);  // down 1.0 < 2.0 - 0.25 - 0.3 = 1.45
   TEST_ASSERT_EQUAL_INT(static_cast<int>(HomePhase::Fault),
                         static_cast<int>(m.phase()));
   TEST_ASSERT_EQUAL_INT(static_cast<int>(HomeFault::InstantTrigger),
                         static_cast<int>(m.fault()));
   TEST_ASSERT_FALSE(m.motionWanted());
   TEST_ASSERT_FALSE(m.datumSetThisRun());
+}
+
+// Bench-found 2026-10-11 (T005 hold verification, parked-on-switch
+// start): a real switch re-triggers up to ~0.05 mm short of the ideal
+// round trip; without the repeatability allowance the parked start is a
+// coin flip between Done and InstantTrigger.
+void test_homing_seekDown_retriggerInsideSwitchRepeatabilityIsLegal() {
+  HomingModel m = configured();
+  m.start();
+  m.tick(10.0f, false, false, 0);
+  m.tick(12.0f, false, false, 0);
+  m.tick(10.4f, true, false, 10);  // down 1.6: inside the 0.3 allowance
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(HomePhase::FinalSeek),
+                        static_cast<int>(m.phase()));
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(HomeFault::None),
+                        static_cast<int>(m.fault()));
+}
+
+void test_homing_finalSeek_retriggerInsideSwitchRepeatabilitySetsDatum() {
+  // Same physics on the second touch (stage-1 trigger P, internal
+  // backoff 2 mm, re-trigger 0.2 mm short): a legal datum, not
+  // StuckSwitch.
+  HomingModel m = configured();
+  finalSeekFlipped(m);  // down sub-stage from 11.5
+  m.tick(9.7f, true, false, 250);  // down 1.8 = clearance - 0.2
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(HomePhase::Done),
+                        static_cast<int>(m.phase()));
+  TEST_ASSERT_TRUE(m.datumSetThisRun());
 }
 
 void test_homing_brokenWireBottomPressedFromStart() {
@@ -520,6 +551,8 @@ void runHomingModelTests() {
   RUN_TEST(test_homing_seekDownTriggerBelowToleranceIsInstantTrigger);
   RUN_TEST(test_homing_brokenWireBottomPressedFromStart);
   RUN_TEST(test_homing_finalSeekEarlyReTriggerIsStuckSwitch);
+  RUN_TEST(test_homing_finalSeek_retriggerInsideSwitchRepeatabilitySetsDatum);
+  RUN_TEST(test_homing_seekDown_retriggerInsideSwitchRepeatabilityIsLegal);
   RUN_TEST(test_homing_bounceDuringFinalSeekBackOff);
   RUN_TEST(test_homing_seekDownTimeoutBoundary);
   RUN_TEST(test_homing_finalSeekTimeoutsBothSubStages);

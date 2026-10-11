@@ -64,6 +64,14 @@ enum class HomePhase {
 
 enum class HomeFault { None, SeekTimeout, InstantTrigger, StuckSwitch };
 
+// Bench-established switch repeatability allowance (2026-10-11): a real
+// KW4-3Z-3 re-triggers up to ~0.05 mm short of the ideal round trip
+// (release vs re-trigger asymmetry), so the two trigger-judgment guards
+// (SeekDown instant-trigger, FinalSeek stuck-switch) must not sit at the
+// exact clearance. 0.3 mm = 6x the observed variance; a broken wire
+// still reads ~0 mm of travel and keeps faulting (A2).
+static constexpr float kSwitchRepeatabilityMm = 0.3f;
+
 class HomingModel {
  public:
   void configure(float clearanceMm, float finalSpeedFraction,
@@ -141,7 +149,8 @@ class HomingModel {
 
       case HomePhase::SeekDown:
         if (bottomStable) {
-          if (consumed(clearanceMm_, entryPosMm_ - positionMm)) {
+          if (consumed(clearanceMm_ - kSwitchRepeatabilityMm,
+                       entryPosMm_ - positionMm)) {
             enter(HomePhase::FinalSeek, positionMm, elapsedMs);
           } else {
             fail(HomeFault::InstantTrigger);
@@ -163,9 +172,11 @@ class HomingModel {
             fail(HomeFault::SeekTimeout);
           }
         } else if (bottomStable) {
-          // The re-seek covers exactly the clearance: an earlier re-trigger
-          // is a stuck switch, never a datum (FR-001 second stage).
-          if (consumed(clearanceMm_, entryPosMm_ - positionMm)) {
+          // The re-seek covers the clearance minus the switch
+          // repeatability allowance: an earlier re-trigger is a stuck
+          // switch, never a datum (FR-001 second stage).
+          if (consumed(clearanceMm_ - kSwitchRepeatabilityMm,
+                       entryPosMm_ - positionMm)) {
             datumSet_ = true;
             phase_ = HomePhase::Done;
           } else {

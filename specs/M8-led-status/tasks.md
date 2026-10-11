@@ -11,21 +11,21 @@ feedback.** Order below is the ASAP path: T001 (pure) -> M3-T008
 
 ## Pure logic (`lib/FirmwareCore`, host-tested)
 
-- [ ] T001 [US1] [US3] [US4] [FR-003] [FR-004] [FR-005] [FR-006] [FR-008] [TC-101]
+- [x] T001 [US1] [US3] [US4] [FR-003] [FR-004] [FR-005] [FR-006] [FR-008] [TC-101]
   `LedPattern` in `lib/FirmwareCore/src/LedPattern.h`: `LedBase`/`LedEvent`/
   `Level` enums, `LedPatternFSM` (base patterns, overlay 2 reps, latest-wins,
   Error suppression), `duty255()` gamma table (7/34/83/255), pattern table per
   spec FR-004. RED: `test/test_led_pattern.cpp` (all 5 base patterns walked on
   a virtual clock, overlay start/preempt/expire, Error drops overlay, duty
   table, **TC-101 flash-rate invariant over every pattern**)
-- [ ] T003 [US1] [FR-004] [FR-005] break + cal events wiring (M3-T011 runner
+- [x] T003 [US1] [FR-004] [FR-005] break + cal events wiring (M3-T011 runner
   feeds `Break`; `Commands` feeds `CalApplied` on `cal_apply` success; Homing/
   Running bases live from the cycle model). Not before M3-T011. Bench evidence
   deferred to M3-T013/T014 sessions
 
 ## Target modules (`src/`, hardware glue, target-tested)
 
-- [ ] T002 [US1] [US2] [US3] [FR-001] [FR-002] [FR-007] [FR-009] [SC-001]
+- [x] T002 [US1] [US2] [US3] [FR-001] [FR-002] [FR-007] [FR-009] [SC-001]
   [SC-002] [SC-004] `src/LedStatus.{h,cpp}` + `src/App.{h,cpp}` wiring:
   LEDC ch0 1 kHz 8-bit on GPIO2 (configured after selftest start, D7),
   `tick()` from `App::loop()` (order after `endstops_.poll()`), App maps
@@ -38,7 +38,7 @@ feedback.** Order below is the ASAP path: T001 (pure) -> M3-T008
 
 ## Pulled forward from M3 (own issue+PR, M3 spec ownership)
 
-- [ ] M3-T008 [US1] [US3] [M3 FR-001] [M3 FR-007] `src/Endstops.{h,cpp}`:
+- [x] M3-T008 [US1] [US3] [M3 FR-001] [M3 FR-007] `src/Endstops.{h,cpp}`:
   GPIO 25/26 `INPUT_PULLUP`, `poll()` with 3-consecutive-sample debounce,
   `bottom()`/`top()` level getters, `bottomEdge()`/`topEdge()` rising-edge
   flags cleared on read, `bootState()` for the M3-T013 selftest rows.

@@ -187,34 +187,10 @@
   MSG(HomeTopStarted, \
       "Moving to the top endstop started (position datum unchanged).", \
       "Fahrt zum oberen Endschalter gestartet (Nullpunkt unveraendert).") \
-  MSG(HomingDatumSet, \
-      "Homing done: datum set, position reads 0.", \
-      "Referenzfahrt fertig: Nullpunkt gesetzt, Position liegt bei 0.") \
-  MSG(HomeTopReachedPrefix, \
-      "Top endstop reached at ", \
-      "Oberer Endschalter erreicht bei ")  /* prefix, mm appended */ \
-  MSG(HomeTopReachedDatumUnknown, \
-      "Top endstop reached (datum unknown - run home for mm).", \
-      "Oberer Endschalter erreicht (Nullpunkt unbekannt - erst homen).") \
   MSG(CycleBusy, \
       "Rejected: a homing or test cycle is active.", \
       "Abgelehnt: eine Referenzfahrt oder ein Testlauf ist aktiv.") \
   MSG(TestStarted, "Test cycle started.", "Testlauf gestartet.") \
-  MSG(TestSummaryPeakPrefix, \
-      "Test done. Peak force: ", \
-      "Test fertig. Maximale Kraft: ")  /* prefix, N + mid + mm + samples */ \
-  MSG(TestSummaryBreakPrefix, \
-      " N, break displacement: ", \
-      " N, Bruchweg: ")  /* joins peak value and break displacement */ \
-  MSG(TestSummarySamplesPrefix, \
-      " mm, samples: ", \
-      " mm, Messwerte: ")  /* joins displacement and sample count */ \
-  MSG(TestTruncatedNote, \
-      " (buffer full, data truncated)", \
-      " (Puffer voll, Daten abgeschnitten)") \
-  MSG(TestLimitReached, \
-      "Upper travel limit reached - no break. Data kept.", \
-      "Oberer Fahrtbegrenzung erreicht - kein Bruch. Daten erhalten.") \
   MSG(TestAbortedNote, \
       "Test/homing stopped - data kept.", \
       "Test/Referenzfahrt gestoppt - Daten erhalten.") \

@@ -157,6 +157,77 @@ void test_web_command_event_truncation_signalled(void) {
   TEST_ASSERT_EQUAL_CHAR('\0', out[sizeof(out) - 1]);
 }
 
+// M6 #192: runner events (homing results, cycle outcomes) ride the same
+// one-line event grammar - {"event":"runner","data":{...},"state":{...}}.
+// Kind spellings are the machine contract for host parsers.
+void test_runner_event_homing_datum(void) {
+  char out[256];
+  ApiRunnerData d{};
+  d.kind = ApiRunnerEvent::HomingDatum;
+  const int n = formatApiRunnerEvent(d, benchSnapshot(), out, sizeof(out));
+  TEST_ASSERT_EQUAL_STRING(
+      "{\"event\":\"runner\",\"data\":{\"kind\":\"homing_datum\"},"
+      "\"state\":{\"posMm\":11.666,\"forceN\":155.71,\"calValid\":true,"
+      "\"cycleState\":\"Idle\",\"faultCode\":0,\"homed\":true}}",
+      out);
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(strlen(out)), n);
+}
+
+void test_runner_event_home_top(void) {
+  char out[256];
+  ApiRunnerData d{};
+  d.kind = ApiRunnerEvent::HomeTop;
+  d.spanMm = 273.5f;
+  formatApiRunnerEvent(d, benchSnapshot(), out, sizeof(out));
+  TEST_ASSERT_NOT_NULL(
+      strstr(out, "\"data\":{\"kind\":\"home_top\",\"spanMm\":273.50}"));
+  d.kind = ApiRunnerEvent::HomeTopNoDatum;
+  formatApiRunnerEvent(d, benchSnapshot(), out, sizeof(out));
+  TEST_ASSERT_NOT_NULL(strstr(out, "\"kind\":\"home_top_no_datum\""));
+}
+
+void test_runner_event_test_summary(void) {
+  char out[256];
+  ApiRunnerData d{};
+  d.kind = ApiRunnerEvent::TestSummary;
+  d.peakN = 155.71f;
+  d.breakMm = 11.67f;
+  d.samples = 598;
+  d.truncated = false;
+  formatApiRunnerEvent(d, benchSnapshot(), out, sizeof(out));
+  TEST_ASSERT_NOT_NULL(strstr(out,
+      "\"data\":{\"kind\":\"test_summary\",\"peakN\":155.71,"
+      "\"breakMm\":11.67,\"samples\":598,\"truncated\":0}"));
+  d.truncated = true;
+  d.samples = 8192;
+  formatApiRunnerEvent(d, benchSnapshot(), out, sizeof(out));
+  TEST_ASSERT_NOT_NULL(strstr(out, "\"samples\":8192,\"truncated\":1"));
+}
+
+void test_runner_event_limit_aborted(void) {
+  char out[256];
+  ApiRunnerData d{};
+  d.kind = ApiRunnerEvent::TestLimit;
+  formatApiRunnerEvent(d, benchSnapshot(), out, sizeof(out));
+  TEST_ASSERT_NOT_NULL(strstr(out, "\"kind\":\"test_limit\""));
+  d.kind = ApiRunnerEvent::TestAborted;
+  formatApiRunnerEvent(d, benchSnapshot(), out, sizeof(out));
+  TEST_ASSERT_NOT_NULL(strstr(out, "\"kind\":\"test_aborted\""));
+  // every kind renders the event key first, state last
+  TEST_ASSERT_TRUE(
+      strncmp(out, "{\"event\":\"runner\",", 18) == 0);
+  TEST_ASSERT_EQUAL_CHAR('}', out[strlen(out) - 1]);
+}
+
+void test_runner_event_truncation_signalled(void) {
+  char out[16];
+  ApiRunnerData d{};
+  d.kind = ApiRunnerEvent::TestAborted;
+  const int n = formatApiRunnerEvent(d, benchSnapshot(), out, sizeof(out));
+  TEST_ASSERT_TRUE(n >= static_cast<int>(sizeof(out)));
+  TEST_ASSERT_EQUAL_CHAR('\0', out[sizeof(out) - 1]);
+}
+
 // NFR: realistic lines stay under the 256 B bound.
 void test_length_bound_realistic_lines(void) {
   char out[256];
@@ -201,6 +272,11 @@ void runApiResponseTests() {
   RUN_TEST(test_web_command_event_exact);
   RUN_TEST(test_web_command_event_escapes_and_false);
   RUN_TEST(test_web_command_event_truncation_signalled);
+  RUN_TEST(test_runner_event_homing_datum);
+  RUN_TEST(test_runner_event_home_top);
+  RUN_TEST(test_runner_event_test_summary);
+  RUN_TEST(test_runner_event_limit_aborted);
+  RUN_TEST(test_runner_event_truncation_signalled);
   RUN_TEST(test_length_bound_realistic_lines);
   RUN_TEST(test_truncation_signalled);
   RUN_TEST(test_negative_force_renders);

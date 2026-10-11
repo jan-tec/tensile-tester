@@ -192,6 +192,63 @@ inline int formatApiWebCommandEvent(const char* command, bool ok,
   return b.finish();
 }
 
+// M6 #192: runner events (the fifth emitter group - homing results and
+// cycle outcomes). Kind spellings are the machine contract; numeric
+// fields are locale-neutral like everywhere. Unused fields per kind are
+// simply not rendered (the kind decides the data shape).
+enum class ApiRunnerEvent {
+  HomingDatum,     // standalone homing established the datum
+  HomeTop,         // home top reached, span measured (spanMm)
+  HomeTopNoDatum,  // home top reached, no datum to measure against
+  TestSummary,     // cycle Done: peakN, breakMm, samples, truncated
+  TestLimit,       // cycle ended at the travel limit
+  TestAborted,     // cycle aborted by stop
+};
+
+struct ApiRunnerData {
+  ApiRunnerEvent kind = ApiRunnerEvent::TestAborted;
+  float spanMm = 0.0f;      // HomeTop
+  float peakN = 0.0f;       // TestSummary
+  float breakMm = 0.0f;     // TestSummary
+  unsigned samples = 0;     // TestSummary
+  bool truncated = false;   // TestSummary
+};
+
+inline int formatApiRunnerEvent(const ApiRunnerData& d,
+                                const ApiStateSnapshot& s, char* out,
+                                size_t cap) {
+  api_detail::LineBuilder b(out, cap);
+  b.put("{\"event\":\"runner\",\"data\":{\"kind\":\"");
+  switch (d.kind) {
+    case ApiRunnerEvent::HomingDatum:
+      b.put("homing_datum\"}");
+      break;
+    case ApiRunnerEvent::HomeTop:
+      b.put("home_top\",\"spanMm\":%.2f}",
+            static_cast<double>(d.spanMm));
+      break;
+    case ApiRunnerEvent::HomeTopNoDatum:
+      b.put("home_top_no_datum\"}");
+      break;
+    case ApiRunnerEvent::TestSummary:
+      b.put("test_summary\",\"peakN\":%.2f,\"breakMm\":%.2f,"
+            "\"samples\":%u,\"truncated\":%d}",
+            static_cast<double>(d.peakN), static_cast<double>(d.breakMm),
+            d.samples, d.truncated ? 1 : 0);
+      break;
+    case ApiRunnerEvent::TestLimit:
+      b.put("test_limit\"}");
+      break;
+    case ApiRunnerEvent::TestAborted:
+      b.put("test_aborted\"}");
+      break;
+  }
+  b.put(",\"state\":");
+  api_detail::putState(b, s);
+  b.put("}");
+  return b.finish();
+}
+
 // The state object alone (FR-002 single snapshot; also the periodic
 // {"event":"status"} payload).
 inline int formatApiStateJson(const ApiStateSnapshot& s, char* out,

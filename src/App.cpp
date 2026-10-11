@@ -45,23 +45,30 @@ void App::reportRunnerEvents() {
 
   // Standalone homing results (an in-cycle homing is reported by the
   // cycle summary below - its Done leads straight into Pulling).
+  // M6 #192: runner outcomes are JSON event lines - {"event":"runner",
+  // "data":{"kind":...},"state":{...}} - one write each, state snapshot
+  // taken at emission time.
   if (!first && homePhase == HomePhase::Done &&
       lastHomePhase_ != HomePhase::Done &&
       testState != TestState::Homing && lastTestState_ != TestState::Homing) {
+    char line[256];
+    ApiRunnerData d{};
     if (testRunner_.homing().datumSetThisRun()) {
       // This completed run established the datum (also true for an
       // idempotent re-home); `home top` never sets it (D12).
-      Serial.println(msg(Msg::HomingDatumSet));
+      d.kind = ApiRunnerEvent::HomingDatum;
     } else if (testRunner_.topSeekSpanValid()) {
-      Serial.print(msg(Msg::HomeTopReachedPrefix));
-      Serial.print(testRunner_.topSeekSpanMm(), 2);
-      Serial.println(msg(Msg::MillimetreSuffix));
+      d.kind = ApiRunnerEvent::HomeTop;
+      d.spanMm = testRunner_.topSeekSpanMm();
     } else {
-      Serial.println(msg(Msg::HomeTopReachedDatumUnknown));
+      d.kind = ApiRunnerEvent::HomeTopNoDatum;
     }
+    formatApiRunnerEvent(d, commands_.stateSnapshot(), line, sizeof(line));
+    Serial.println(line);
   }
 
   if (!first && testState != lastTestState_) {
+    char line[256];
     switch (testState) {
       case TestState::Tail:
         // M8-T003: the break overlay (emission window: Running, FR-005).
@@ -73,24 +80,35 @@ void App::reportRunnerEvents() {
         break;
       case TestState::Done:
         // FR-002(6): peak force, break displacement, sample count.
-        Serial.print(msg(Msg::TestSummaryPeakPrefix));
-        Serial.print(testRunner_.peakForceN(), 2);
-        Serial.print(msg(Msg::TestSummaryBreakPrefix));
-        Serial.print(testRunner_.breakDisplacementMm(), 2);
-        Serial.print(msg(Msg::TestSummarySamplesPrefix));
-        Serial.print(
-            static_cast<unsigned>(testRunner_.samples().count()));
-        if (testRunner_.samples().truncated()) {
-          Serial.print(msg(Msg::TestTruncatedNote));
+        {
+          ApiRunnerData d{};
+          d.kind = ApiRunnerEvent::TestSummary;
+          d.peakN = testRunner_.peakForceN();
+          d.breakMm = testRunner_.breakDisplacementMm();
+          d.samples = static_cast<unsigned>(
+              testRunner_.samples().count());
+          d.truncated = testRunner_.samples().truncated();
+          formatApiRunnerEvent(d, commands_.stateSnapshot(), line,
+                               sizeof(line));
+          Serial.println(line);
         }
-        Serial.println();
         break;
-      case TestState::Limit:
-        Serial.println(msg(Msg::TestLimitReached));
+      case TestState::Limit: {
+        ApiRunnerData d{};
+        d.kind = ApiRunnerEvent::TestLimit;
+        formatApiRunnerEvent(d, commands_.stateSnapshot(), line,
+                             sizeof(line));
+        Serial.println(line);
         break;
-      case TestState::Aborted:
-        Serial.println(msg(Msg::TestAbortedNote));
+      }
+      case TestState::Aborted: {
+        ApiRunnerData d{};
+        d.kind = ApiRunnerEvent::TestAborted;
+        formatApiRunnerEvent(d, commands_.stateSnapshot(), line,
+                             sizeof(line));
+        Serial.println(line);
         break;
+      }
       default:
         break;  // Error: the STATE line (Diagnostics) already reports it
     }

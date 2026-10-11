@@ -27,10 +27,25 @@ interactive wizard is specified in `specs/M5-loadcell-calibration/spec.md`
 1. `cal_zero` with the carriage unloaded - this tares the zero point.
 2. Hang the known mass (verified on a scale, ideally).
 3. `cal_apply <grams>` with the mass in **grams** - e.g. a 50 kg mass is
-   `cal_apply 50000`.
+   `cal_apply 50000`. Note: pass the command as one line
+   (`cal_apply 50000`); a bare `cal_apply` is rejected as unknown.
 4. The machine computes the factor (raw counts per gram), rejects a zero
    or negative result, and saves it to NVS - it survives reboots.
-5. `force` should now read the mass times 9.80665 N/kg.
+5. `force` should now read the mass times 9.80665 N/kg. Read it again
+   after ~3-4 s: the low-pass filter is reset by the calibration, so the
+   first reply right after `cal_apply` still shows 0.00 N (settling
+   artifact, not a fault - see `docs/learnings/2026-10-11-scripted-serial-control.md`).
+
+Sanity check until M5 ships: the factor should land near the
+physics-derived nominal ~8.59 counts/g for this cell (YZC-516C,
+2.0 mV/V, 5 V, 500 kg); accept roughly [2.6, 25.8]. Bench reference
+(2026-10-11, #48): measured 8.923326 = 1.04x nominal.
+
+Persistence + verification trick: reboot with the mass still hanging -
+the boot auto-tare makes the machine read 0 N under load, so REMOVING
+the mass afterwards must read the negative of its weight. The boot log
+prints `Kalibrierfaktor geladen: <factor>` and the NVS selftest row
+echoes it.
 
 ## Notes
 

@@ -21,7 +21,7 @@ WiFi-AP web UI, serial CLI.
 | `src/PowerSense.{h,cpp}` | 5 V rail sense: GPIO34 10 k/10 k divider, one-shot boot read + 1 Hz runtime monitor (FR-005) |
 | `src/ErrorCode.h` | Stable machine codes + check vocabulary (pure, host-testable) - never renumber codes |
 | `src/IMotion.h`, `src/ILoadCell.h` | Contracts (FR-007): App depends on them, Motion/LoadCell implement them |
-| `lib/FirmwareCore/` | Pure C++ gear/feed math, command parser, device state machine, health evaluation (no Arduino) - unit-tested on the host |
+| `lib/FirmwareCore/` | Pure C++ gear/feed math, command parser, device state machine, health evaluation, serial API envelope (no Arduino) - unit-tested on the host |
 | `test/` | Unity host tests (`pio test -e native`) |
 | `standalone_tests/` | Debug sketches (blink, raw loadcell, motor menu) - NOT built automatically (see below) |
 | `include/` | Empty scaffolding, README only |

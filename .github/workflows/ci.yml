@@ -7,8 +7,8 @@ on:
 
 jobs:
   # Detection half of the PR-only `main` rule (AGENTS.md "Push Guardrail", #100).
-  # GitHub Free + private repo cannot enforce it server-side (rulesets and branch
-  # protection both answer 403, re-verified 2026-10-10), so every push to main is
+  # The "main protection" ruleset blocks direct pushes server-side since
+  # 2026-10-11, but the repo admin can bypass it, so every push to main is still
   # audited here: squash-merged PRs always end their subject with "(#<n>)", a
   # direct push does not. Runs on push to `main` only, independent of build/test
   # (parallel on purpose: their results survive a guard fail, and guard is cheap

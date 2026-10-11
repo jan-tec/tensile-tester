@@ -284,6 +284,17 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
     body.stale .pill .value {
       opacity: 0.35;
     }
+    /* #95: reboot announce - latched (survives poll cycles), cleared by
+       the next operator action (sendCommand). */
+    #rebootBanner[hidden] {
+      display: none;
+    }
+    #rebootBanner {
+      border: 1px solid var(--muted);
+      padding: 6px 10px;
+      margin: 8px 0 0 0;
+      font-weight: 700;
+    }
     @media (max-width: 640px) {
       .status, .btnrow { grid-template-columns: 1fr; }
     }
@@ -444,6 +455,7 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
     </div>
 
     <div id="staleBanner" role="status"></div>
+    <div id="rebootBanner" role="alert" hidden></div>
     <div id="message" aria-live="polite"></div>
   </div>
 
@@ -662,6 +674,7 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
     let lastContactMs = Date.now();
     let lastUptimeMs = -1;
     const staleBanner = document.getElementById("staleBanner");
+    const rebootBanner = document.getElementById("rebootBanner");
 
     function markStale() {
       const ageSeconds = Math.round((Date.now() - lastContactMs) / 1000);
@@ -961,6 +974,8 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
     }
 
     async function sendCommand(command) {
+      // #95: an operator action supersedes the reboot notice.
+      rebootBanner.hidden = true;
       try {
         const response = await fetch("/api/command?cmd=" + encodeURIComponent(command));
         const data = await response.json();
@@ -1009,8 +1024,11 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
         if (typeof data.uptimeMs === "number") {
           if (lastUptimeMs >= 0 && data.uptimeMs < lastUptimeMs) {
             // The boot clock went backwards - the device rebooted under
-            // the page (driver/position state reset with it).
-            setMessage(t("deviceRebooted"), true);
+            // the page (driver/position state reset with it). Latched:
+            // poll noise must not eat it; the next operator action
+            // (sendCommand) clears it.
+            rebootBanner.hidden = false;
+            rebootBanner.textContent = t("deviceRebooted");
           }
           lastUptimeMs = data.uptimeMs;
         }

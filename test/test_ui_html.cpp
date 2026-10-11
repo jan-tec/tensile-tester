@@ -496,6 +496,13 @@ void test_ui_status_fetch_has_timeout(void) {
   TEST_ASSERT_TRUE(inHtml("AbortSignal.timeout"));
 }
 
+void test_ui_reboot_announce_is_latched(void) {
+  // Bench-found: the message-line announce was transient - poll noise
+  // during AP recovery overwrote it within seconds. A reboot must stay
+  // visible until the operator acts (sendCommand clears it).
+  TEST_ASSERT_TRUE(inHtml("id=\"rebootBanner\""));
+}
+
 void runUiHtmlTests(void) {
   RUN_TEST(test_index_html_has_content);
   RUN_TEST(test_index_html_declares_language_and_charset);
@@ -509,6 +516,7 @@ void runUiHtmlTests(void) {
   RUN_TEST(test_ui_has_stale_banner_hooks);
   RUN_TEST(test_ui_detects_device_reboot_via_uptime);
   RUN_TEST(test_ui_status_fetch_has_timeout);
+  RUN_TEST(test_ui_reboot_announce_is_latched);
   RUN_TEST(test_i18n_dictionary_has_both_locales);
   RUN_TEST(test_i18n_dictionary_is_complete);
   RUN_TEST(test_all_data_cmd_values_are_known_commands);

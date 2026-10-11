@@ -36,6 +36,7 @@ struct TestConfig {
   uint32_t homingTimeoutMs;
   float holdTolerancePct;    // M4 FR-001: [1, 25] %, default 5
   float holdClearanceMm;     // M4 FR-001: [1, 100] mm, default 20
+  float holdMaxN;            // #220: per-sample ceiling [1, 4000] N, default 4000
 };
 
 inline TestConfig defaultTestConfig() {
@@ -48,6 +49,7 @@ inline TestConfig defaultTestConfig() {
   c.homingTimeoutMs = 30000;
   c.holdTolerancePct = 5.0f;
   c.holdClearanceMm = 20.0f;
+  c.holdMaxN = 4000.0f;
   return c;
 }
 
@@ -87,7 +89,38 @@ inline TestConfig clampTestConfig(TestConfig c) {
       clampField(c.holdTolerancePct, 1.0f, 25.0f, d.holdTolerancePct);
   c.holdClearanceMm =
       clampField(c.holdClearanceMm, 1.0f, 100.0f, d.holdClearanceMm);
+  c.holdMaxN = clampField(c.holdMaxN, 1.0f, 4000.0f, d.holdMaxN);
   return c;
+}
+
+// M4 plan D7: hold setpoint magnitude clamps to [1, 4000] N (floor above
+// the ~1 N noise, ceiling below the 4903 N cell rating), sign preserved.
+// Zero passes through for the CALLER to reject (0 N is no command).
+// Lives in TestConfig.h next to effectiveHoldSetpointN (the config
+// boundary owns the envelope).
+inline float clampHoldSetpointN(float n) {
+  if (!std::isfinite(n) || n == 0.0f) {
+    return n;
+  }
+  const float magnitude = n < 0.0f ? -n : n;
+  const float clamped = magnitude < 1.0f     ? 1.0f
+                        : magnitude > 4000.0f ? 4000.0f
+                                              : magnitude;
+  return n < 0.0f ? -clamped : clamped;
+}
+
+// #220: the effective hold setpoint - the D7 machine envelope above
+// FURTHER capped by the operator's per-sample ceiling (choldmax, NVS).
+// Both startHold and the reply echo route through this so they can
+// never disagree.
+inline float effectiveHoldSetpointN(float n, const TestConfig &c) {
+  const float envelope = clampHoldSetpointN(n);
+  if (envelope == 0.0f || !std::isfinite(envelope)) {
+    return envelope;  // caller rejects (0 N is no command)
+  }
+  const float magnitude = envelope < 0.0f ? -envelope : envelope;
+  const float capped = magnitude > c.holdMaxN ? c.holdMaxN : magnitude;
+  return envelope < 0.0f ? -capped : capped;
 }
 
 // Resolution of the follow-me rule for the homing seek stage: a config

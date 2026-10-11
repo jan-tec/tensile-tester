@@ -377,6 +377,16 @@ void test_parse_chold_garbage_is_invalid(void) {
                     parseCholdCommand("chold inf", &setpoint, &minutes));
 }
 
+// M4 T006: chold drives the motor (Error-state rejection applies);
+// choltol/choldclear are config commands (usable outside Error only by
+// the config-lock rule, but NOT motion).
+void test_chold_is_a_motion_command(void) {
+  TEST_ASSERT_TRUE(isMotionCommand("chold 50 5"));
+  TEST_ASSERT_TRUE(isMotionCommand("chold -20"));
+  TEST_ASSERT_FALSE(isMotionCommand("choltol 5"));
+  TEST_ASSERT_FALSE(isMotionCommand("choldclear 20"));
+}
+
 void runCommandParserTests() {
   RUN_TEST(test_command_from_name_exact);
   RUN_TEST(test_command_from_name_trims_whitespace);
@@ -409,4 +419,5 @@ void runCommandParserTests() {
   RUN_TEST(test_parse_chold_decimal_duration_and_comma);
   RUN_TEST(test_parse_chold_bare_is_not_the_command);
   RUN_TEST(test_parse_chold_garbage_is_invalid);
+  RUN_TEST(test_chold_is_a_motion_command);
 }

@@ -450,6 +450,83 @@ bool Commands::execute(String command, String &response, ErrorCode &error,
     return true;
   }
 
+  // M4 FR-001 (T006): constant-force hold.
+  {
+    float holdSetpoint = 0.0f;
+    float holdMinutes = 0.0f;
+    const ParseResult choldResult = parseCholdCommand(command.c_str(),
+                                                      &holdSetpoint,
+                                                      &holdMinutes);
+    if (choldResult == ParseResult::InvalidValue) {
+      return reportInvalidValue(response, error);
+    }
+    if (choldResult == ParseResult::Ok) {
+      if (testRunner_.active()) {
+        response = msg(Msg::CycleBusy);
+        error = ErrorCode::StateConflict;
+        return false;
+      }
+      if (testRunner_.dumpInProgress()) {
+        response = msg(Msg::DumpBusy);
+        error = ErrorCode::StateConflict;
+        return false;
+      }
+      if (!testRunner_.startHold(holdSetpoint, holdMinutes)) {
+        // Zero/non-finite setpoint (busy/fault cases are covered above).
+        response = msg(Msg::HoldSetpointRequired);
+        error = ErrorCode::InvalidValue;
+        return false;
+      }
+      // Echo the EFFECTIVE setpoint: the D7 envelope + the operator's
+      // per-sample ceiling (choldmax) may both have adjusted it (#220).
+      const float setpoint =
+          effectiveHoldSetpointN(holdSetpoint, testRunner_.config());
+      response = String(msg(Msg::HoldStarted)) + String(setpoint, 2);
+      if (holdMinutes > 0.0f) {
+        response += String(msg(Msg::HoldForMinutes)) +
+                    String(holdMinutes, 1) + msg(Msg::MinutesSuffix);
+      } else {
+        response += msg(Msg::HoldUntilStop);
+      }
+      return true;
+    }
+  }
+
+  // M4 FR-001: hold config knobs (persisted, clamped; TestConfig fields).
+  const ParseResult holdTolResult =
+      parseValueAfterCommand(command, "choltol", value);
+  if (holdTolResult == ParseResult::InvalidValue) {
+    return reportInvalidValue(response, error);
+  }
+  if (holdTolResult == ParseResult::Ok) {
+    return applyTestConfigValue(value, response, error,
+                                &TestConfig::holdTolerancePct,
+                                msg(Msg::PercentSuffix));
+  }
+
+  const ParseResult holdClearResult =
+      parseValueAfterCommand(command, "choldclear", value);
+  if (holdClearResult == ParseResult::InvalidValue) {
+    return reportInvalidValue(response, error);
+  }
+  if (holdClearResult == ParseResult::Ok) {
+    return applyTestConfigValue(value, response, error,
+                                &TestConfig::holdClearanceMm,
+                                msg(Msg::MillimetreSuffix));
+  }
+
+  // #220: per-sample hold ceiling (persisted, clamped [1, 4000] N).
+  const ParseResult holdMaxResult =
+      parseValueAfterCommand(command, "choldmax", value);
+  if (holdMaxResult == ParseResult::InvalidValue) {
+    return reportInvalidValue(response, error);
+  }
+  if (holdMaxResult == ParseResult::Ok) {
+    return applyTestConfigValue(value, response, error,
+                                &TestConfig::holdMaxN,
+                                msg(Msg::NewtonSuffix));
+  }
+
   // M3 T012: test config knobs (persisted, clamped; FR-005).
   const ParseResult testSpeedResult =
       parseValueAfterCommand(command, "testspeed", value);

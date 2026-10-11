@@ -259,6 +259,27 @@ void test_negative_force_renders(void) {
   TEST_ASSERT_NOT_NULL(strstr(out, "\"forceN\":-24.10"));
 }
 
+// M4 T006 (#210): hold_summary runner event - exact grammar.
+void test_runner_event_hold_summary(void) {
+  char out[256];
+  ApiRunnerData d{};
+  d.kind = ApiRunnerEvent::HoldSummary;
+  d.holdEnd = "time";
+  d.holdTicks = 590;
+  d.meanN = 19.44f;
+  d.maxDevPct = 52.8f;
+  d.inBandPct = 94.2f;
+  d.creepMm = 0.097f;
+  formatApiRunnerEvent(d, benchSnapshot(), out, sizeof(out));
+  TEST_ASSERT_NOT_NULL(strstr(out,
+      "\"data\":{\"kind\":\"hold_summary\",\"end\":\"time\","
+      "\"ticks\":590,\"meanN\":19.44,\"maxDevPct\":52.8,"
+      "\"inBandPct\":94.2,\"creepMm\":0.097}"));
+  d.holdEnd = "lost";
+  formatApiRunnerEvent(d, benchSnapshot(), out, sizeof(out));
+  TEST_ASSERT_NOT_NULL(strstr(out, "\"kind\":\"hold_summary\",\"end\":\"lost\""));
+}
+
 void runApiResponseTests() {
   RUN_TEST(test_success_envelope_exact);
   RUN_TEST(test_error_envelope_exact);
@@ -276,6 +297,7 @@ void runApiResponseTests() {
   RUN_TEST(test_runner_event_home_top);
   RUN_TEST(test_runner_event_test_summary);
   RUN_TEST(test_runner_event_limit_aborted);
+  RUN_TEST(test_runner_event_hold_summary);
   RUN_TEST(test_runner_event_truncation_signalled);
   RUN_TEST(test_length_bound_realistic_lines);
   RUN_TEST(test_truncation_signalled);

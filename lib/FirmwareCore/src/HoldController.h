@@ -106,6 +106,8 @@ class HoldController {
     end_ = End::None;
     stopRequested_ = false;
     underFloorTicks_ = 0;
+    approachPeakN_ = 0.0f;      // #220: contact-evidence tracking
+    approachCollapseTicks_ = 0;
     holdTicks_ = 0;
     inBandTicks_ = 0;
     forceSumN_ = 0.0f;
@@ -232,6 +234,11 @@ class HoldController {
   // Approach decision: compression transits up to clearanceMm first
   // (D26 during transit just ends the transit, FR-002), then seeks to
   // contact; tension seeks up immediately. Contact = |force| >= floor.
+  // #220: a probe that tears DURING approach (below the threshold)
+  // must end Lost, not seek to the travel limit - once contact is
+  // evidenced (|F| >= max(1 N, 5% |setpoint|)), a fall below 50% of the
+  // observed approach peak on 2 consecutive ticks = Lost (the same
+  // confirm discipline as FR-004).
   void approachOutput(const Inputs &in, int travelDir, Output &out) {
     out.sample = true;  // FR-006: sampling through approach
     const float magnitude =
@@ -271,6 +278,26 @@ class HoldController {
       out.phase = Phase::Holding;
       out.seekDir = 0;
       out.holdStartTick = true;
+      return;
+    }
+    // #220: probe-failure detection during the seek.
+    if (forceMagnitude > approachPeakN_) {
+      approachPeakN_ = forceMagnitude;
+      approachCollapseTicks_ = 0;
+    } else {
+      const float evidenceN =
+          1.0f > 0.05f * magnitude ? 1.0f : 0.05f * magnitude;
+      if (approachPeakN_ >= evidenceN &&
+          forceMagnitude < 0.5f * approachPeakN_) {
+        if (++approachCollapseTicks_ >= 2) {
+          out.seekDir = 0;
+          finish(Phase::Lost, End::Lost, in);
+          out.phase = phase_;
+          out.end = end_;
+        }
+      } else {
+        approachCollapseTicks_ = 0;
+      }
     }
   }
 
@@ -340,6 +367,8 @@ class HoldController {
   uint8_t underFloorTicks_ = 0;
   bool enteredHold_ = false;
   bool transitDone_ = false;
+  float approachPeakN_ = 0.0f;        // #220 probe-failure detection
+  uint8_t approachCollapseTicks_ = 0;
   uint32_t holdStartMs_ = 0;
   float holdStartPosMm_ = 0.0f;
   float endPosMm_ = 0.0f;

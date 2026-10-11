@@ -158,7 +158,7 @@ bool isMotionCommand(const char* command) {
       break;
   }
   static const char* const kMotionPrefixes[] = {
-      "rpm", "acc", "feed", "move", "turn"};
+      "rpm", "acc", "feed", "move", "turn", "chold"};
   for (const char* prefix : kMotionPrefixes) {
     if (startsWithCommandPrefix(command, prefix)) {
       return true;

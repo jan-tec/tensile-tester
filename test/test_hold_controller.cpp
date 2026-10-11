@@ -387,6 +387,53 @@ void test_hold_overshoot_bound_spring_sweep(void) {
   }
 }
 
+// #220: a probe that tears DURING APPROACH (below the 50% threshold)
+// must end Lost, not seek forever - contact evidence + collapse, same
+// 2-tick confirm as FR-004.
+void test_hold_approach_probe_failure_ends_lost(void) {
+  HoldController c;
+  c.start(tensionTargets());  // 50 N -> threshold 25 N
+  HoldController::Inputs in = baseInputs();
+  step(c, in, 0.0f, 1000);   // seek, no contact
+  HoldController::Output out = step(c, in, 8.0f, 1100);  // contact evidence (>= max(1, 5%))
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(HoldController::Phase::Approach),
+                        static_cast<int>(out.phase));  // 8 < 25: still seeking
+  out = step(c, in, 2.0f, 1200);  // collapse below 50% of peak (8): 1st tick
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(HoldController::Phase::Approach),
+                        static_cast<int>(out.phase));
+  out = step(c, in, 1.5f, 1300);  // 2nd consecutive -> Lost
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(HoldController::Phase::Lost),
+                        static_cast<int>(out.phase));
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(HoldController::End::Lost),
+                        static_cast<int>(out.end));
+}
+
+void test_hold_approach_single_dip_recovers(void) {
+  HoldController c;
+  c.start(tensionTargets());
+  HoldController::Inputs in = baseInputs();
+  step(c, in, 0.0f, 1000);
+  step(c, in, 8.0f, 1100);   // contact evidence
+  step(c, in, 2.0f, 1200);   // single glitch below half-peak
+  const HoldController::Output out = step(c, in, 30.0f, 1300);  // recovers, contacts
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(HoldController::Phase::Holding),
+                        static_cast<int>(out.phase));
+}
+
+void test_hold_approach_noise_below_evidence_never_latches_lost(void) {
+  // No contact evidence (all samples < 1 N = the floor for a 50 N hold
+  // is max(1, 5%) -> 2.5? see impl: evidence = max(1 N, 5% |sp|)): the
+  // collapse rule must stay unarmed; only the D26 bound ends the seek.
+  HoldController c;
+  c.start(tensionTargets());
+  HoldController::Inputs in = baseInputs();
+  step(c, in, 0.0f, 1000);
+  step(c, in, 0.8f, 1100);  // below evidence floor
+  HoldController::Output out = step(c, in, 0.3f, 1200);
+  TEST_ASSERT_EQUAL_INT(static_cast<int>(HoldController::Phase::Approach),
+                        static_cast<int>(out.phase));
+}
+
 void runHoldControllerTests() {
   RUN_TEST(test_hold_idle_stays_idle);
   RUN_TEST(test_hold_start_waits_for_homing);
@@ -406,6 +453,9 @@ void runHoldControllerTests() {
   RUN_TEST(test_hold_device_fault_aborts);
   RUN_TEST(test_hold_terminal_latches_and_restart_allowed);
   RUN_TEST(test_hold_nonfinite_tick_ignored);
+  RUN_TEST(test_hold_approach_probe_failure_ends_lost);
+  RUN_TEST(test_hold_approach_single_dip_recovers);
+  RUN_TEST(test_hold_approach_noise_below_evidence_never_latches_lost);
   RUN_TEST(test_hold_report_in_band_run);
   RUN_TEST(test_hold_report_drifting_run);
   RUN_TEST(test_hold_overshoot_bound_spring_sweep);

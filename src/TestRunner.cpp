@@ -62,7 +62,7 @@ bool TestRunner::startHold(float setpointN, float durationMin) {
   if (homing_.phase() == HomePhase::Fault) {
     return false;
   }
-  const float setpoint = clampHoldSetpointN(setpointN);
+  const float setpoint = effectiveHoldSetpointN(setpointN, config_);
   if (setpoint == 0.0f || !std::isfinite(setpoint)) {
     return false;  // 0 N is no command; the caller maps this to a reply
   }

@@ -116,6 +116,8 @@ class TestRunner {
   bool endstopTop() const { return endstops_.top(); }
   TestState testState() const { return cycle_.state(); }
   const HomingModel &homing() const { return homing_; }
+  // M4: live hold phase for status surfaces and the runner-event edge.
+  HoldController::Phase holdPhase() const { return hold_.phase(); }
 
   // Run record (summary / testdata replies, T012). Peak force is the
   // detector's armed-phase peak; displacement is relative to the pull

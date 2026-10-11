@@ -41,6 +41,7 @@ void App::begin() {
 void App::reportRunnerEvents() {
   const TestState testState = testRunner_.testState();
   const HomePhase homePhase = testRunner_.homing().phase();
+  const HoldController::Phase holdPhase = testRunner_.holdPhase();
   const bool first = !started_;
   started_ = true;
 
@@ -68,8 +69,7 @@ void App::reportRunnerEvents() {
     Serial.println(line);
   }
 
-  if (!first && testState != lastTestState_) {
-    char line[256];
+  if (!first && testState != lastTestState_) {    char line[256];
     switch (testState) {
       case TestState::Tail:
         // M8-T003: the break overlay (emission window: Running, FR-005).
@@ -114,8 +114,38 @@ void App::reportRunnerEvents() {
         break;  // Error: the STATE line (Diagnostics) already reports it
     }
   }
+  // M4 #210: hold outcomes are hold_summary events - emitted on the
+  // transition INTO a terminal hold phase (Done | Limit | Lost |
+  // Aborted), the same single-edge rule the other runner events use.
+  if (!first && holdPhase != lastHoldPhase_ &&
+      (holdPhase == HoldController::Phase::Done ||
+       holdPhase == HoldController::Phase::Limit ||
+       holdPhase == HoldController::Phase::Lost ||
+       holdPhase == HoldController::Phase::Aborted) &&
+      testRunner_.holdReportValid()) {
+    char line[256];
+    ApiRunnerData d{};
+    d.kind = ApiRunnerEvent::HoldSummary;
+    switch (testRunner_.holdEndReason()) {
+      case HoldController::End::Time: d.holdEnd = "time"; break;
+      case HoldController::End::Stop: d.holdEnd = "stop"; break;
+      case HoldController::End::Limit: d.holdEnd = "limit"; break;
+      case HoldController::End::Lost: d.holdEnd = "lost"; break;
+      case HoldController::End::Fault: d.holdEnd = "fault"; break;
+      case HoldController::End::None: d.holdEnd = "none"; break;
+    }
+    const HoldController::Report &r = testRunner_.holdReport();
+    d.holdTicks = r.holdTicks;
+    d.meanN = r.meanForceN;
+    d.maxDevPct = r.maxDevPct;
+    d.inBandPct = r.inBandPct;
+    d.creepMm = r.creepMm;
+    formatApiRunnerEvent(d, commands_.stateSnapshot(), line, sizeof(line));
+    Serial.println(line);
+  }
   lastTestState_ = testState;
   lastHomePhase_ = homePhase;
+  lastHoldPhase_ = holdPhase;
 }
 
 void App::loop() {

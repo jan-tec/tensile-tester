@@ -146,6 +146,24 @@ void test_clamp_hold_setpoint(void) {
   TEST_ASSERT_FLOAT_WITHIN(1e-6f, 0.0f, clampHoldSetpointN(0.0f));
 }
 
+// #220: the per-sample ceiling rides the config boundary.
+void test_hold_max_ceiling(void) {
+  const TestConfig d = defaultTestConfig();
+  TEST_ASSERT_FLOAT_WITHIN(1e-6f, 4000.0f, d.holdMaxN);
+  TestConfig c = d;
+  c.holdMaxN = 0.0f;
+  TEST_ASSERT_FLOAT_WITHIN(1e-6f, 1.0f, clampTestConfig(c).holdMaxN);
+  c.holdMaxN = 99999.0f;
+  TEST_ASSERT_FLOAT_WITHIN(1e-6f, 4000.0f, clampTestConfig(c).holdMaxN);
+  c.holdMaxN = 100.0f;
+  TEST_ASSERT_FLOAT_WITHIN(1e-6f, 100.0f, clampTestConfig(c).holdMaxN);
+  // The effective setpoint honors the ceiling, sign preserved.
+  TEST_ASSERT_FLOAT_WITHIN(1e-6f, 100.0f, effectiveHoldSetpointN(99999.0f, c));
+  TEST_ASSERT_FLOAT_WITHIN(1e-6f, -100.0f, effectiveHoldSetpointN(-500.0f, c));
+  TEST_ASSERT_FLOAT_WITHIN(1e-6f, 50.0f, effectiveHoldSetpointN(50.0f, c));
+  TEST_ASSERT_FLOAT_WITHIN(1e-6f, 0.0f, effectiveHoldSetpointN(0.0f, c));
+}
+
 void runConfigTests(void) {
   RUN_TEST(test_default_config);
   RUN_TEST(test_clamp_speed);
@@ -158,4 +176,5 @@ void runConfigTests(void) {
   RUN_TEST(test_clamp_hold_fields);
   RUN_TEST(test_hold_nonfinite_becomes_field_default);
   RUN_TEST(test_clamp_hold_setpoint);
+  RUN_TEST(test_hold_max_ceiling);
 }

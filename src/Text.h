@@ -174,11 +174,11 @@
       "Verfuegbare Kommandos: en, off, zero, tare, force, pos, stop, ") \
   MSG(HelpCommandsSuffix, \
       "rpm, acc, feed, move, turn, jog up, jog down, cal_zero, cal_apply, " \
-      "help, home, home top, test, testspeed, testarm, testdrop, data, " \
-      "testdata, homeseek, hometimeout, ends, lang", \
+      "help, home, home top, test, testspeed, testarm, testdrop, chold, " \
+      "choltol, choldclear, choldmax, data, testdata, homeseek, hometimeout, ends, lang", \
       "rpm, acc, feed, move, turn, jog up, jog down, cal_zero, cal_apply, " \
-      "help, home, home top, test, testspeed, testarm, testdrop, data, " \
-      "testdata, homeseek, hometimeout, ends, lang")  /* command names are locale-invariant */ \
+      "help, home, home top, test, testspeed, testarm, testdrop, chold, " \
+      "choltol, choldclear, choldmax, data, testdata, homeseek, hometimeout, ends, lang")  /* command names are locale-invariant */ \
   /* Test cycle (M3 FR-005/FR-006, T012). Composed prefix + value + the \
      existing unit suffix rows - no format strings. */ \
   MSG(HomeStarted, \
@@ -191,6 +191,16 @@
       "Rejected: a homing or test cycle is active.", \
       "Abgelehnt: eine Referenzfahrt oder ein Testlauf ist aktiv.") \
   MSG(TestStarted, "Test cycle started.", "Testlauf gestartet.") \
+  /* Constant-force hold (M4 FR-001, T006). Composed like the M3 rows. */ \
+  MSG(HoldStarted, \
+      "Constant-force hold started at ", \
+      "Kraftkonstanthalten gestartet bei ") \
+  MSG(HoldForMinutes, " N for ", " N fuer ") \
+  MSG(HoldUntilStop, " N until stop.", " N bis Stopp.") \
+  MSG(MinutesSuffix, " min.", " min.") \
+  MSG(HoldSetpointRequired, \
+      "Hold setpoint must be nonzero (positive = tension, negative = compression).", \
+      "Halte-Sollwert darf nicht null sein (positiv = Zug, negativ = Druck).") \
   MSG(TestAbortedNote, \
       "Test/homing stopped - data kept.", \
       "Test/Referenzfahrt gestoppt - Daten erhalten.") \

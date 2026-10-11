@@ -74,6 +74,7 @@ TestConfig Settings::loadTestConfig() {
       preferences_.getFloat(kPrefHoldTol, d.holdTolerancePct);
   c.holdClearanceMm =
       preferences_.getFloat(kPrefHoldClear, d.holdClearanceMm);
+  c.holdMaxN = preferences_.getFloat(kPrefHoldMax, d.holdMaxN);
   preferences_.end();
 
   // Single validation boundary (TestConfig.h): NVS can hold anything a
@@ -92,5 +93,6 @@ void Settings::saveTestConfig(const TestConfig &config) {
   preferences_.putUInt(kPrefHomeTimeout, config.homingTimeoutMs);
   preferences_.putFloat(kPrefHoldTol, config.holdTolerancePct);
   preferences_.putFloat(kPrefHoldClear, config.holdClearanceMm);
+  preferences_.putFloat(kPrefHoldMax, config.holdMaxN);
   preferences_.end();
 }

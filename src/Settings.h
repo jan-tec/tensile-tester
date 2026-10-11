@@ -61,6 +61,7 @@ class Settings {
   static constexpr const char *kPrefHomeTimeout = "home_tout";
   static constexpr const char *kPrefHoldTol = "hold_tol";    // M4 FR-001
   static constexpr const char *kPrefHoldClear = "hold_clear";
+  static constexpr const char *kPrefHoldMax = "hold_max";    // #220
 
   Preferences preferences_;
 };

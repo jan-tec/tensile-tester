@@ -203,6 +203,7 @@ enum class ApiRunnerEvent {
   TestSummary,     // cycle Done: peakN, breakMm, samples, truncated
   TestLimit,       // cycle ended at the travel limit
   TestAborted,     // cycle aborted by stop
+  HoldSummary,     // M4 hold ended: end reason + report (holdEnd/...)
 };
 
 struct ApiRunnerData {
@@ -212,6 +213,12 @@ struct ApiRunnerData {
   float breakMm = 0.0f;     // TestSummary
   unsigned samples = 0;     // TestSummary
   bool truncated = false;   // TestSummary
+  const char* holdEnd = "";  // HoldSummary: time|stop|limit|lost|fault
+  unsigned holdTicks = 0;    // HoldSummary
+  float meanN = 0.0f;        // HoldSummary
+  float maxDevPct = 0.0f;   // HoldSummary
+  float inBandPct = 0.0f;   // HoldSummary
+  float creepMm = 0.0f;     // HoldSummary
 };
 
 inline int formatApiRunnerEvent(const ApiRunnerData& d,
@@ -241,6 +248,14 @@ inline int formatApiRunnerEvent(const ApiRunnerData& d,
       break;
     case ApiRunnerEvent::TestAborted:
       b.put("test_aborted\"}");
+      break;
+    case ApiRunnerEvent::HoldSummary:
+      b.put("hold_summary\",\"end\":\"%s\",\"ticks\":%u,\"meanN\":%.2f,"
+            "\"maxDevPct\":%.1f,\"inBandPct\":%.1f,\"creepMm\":%.3f}",
+            d.holdEnd, d.holdTicks, static_cast<double>(d.meanN),
+            static_cast<double>(d.maxDevPct),
+            static_cast<double>(d.inBandPct),
+            static_cast<double>(d.creepMm));
       break;
   }
   b.put(",\"state\":");

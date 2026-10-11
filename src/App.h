@@ -90,5 +90,6 @@ class App {
   // M3 T012: last-seen runner states for transition-edge reporting.
   TestState lastTestState_ = TestState::Idle;
   HomePhase lastHomePhase_ = HomePhase::Idle;
+  HoldController::Phase lastHoldPhase_ = HoldController::Phase::Idle;
   bool started_ = false;  // suppress the boot report until the first tick
 };

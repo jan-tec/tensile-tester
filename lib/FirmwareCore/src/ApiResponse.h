@@ -200,4 +200,57 @@ inline int formatApiDumpFooter(const ApiStateSnapshot& s, size_t sent,
   return b.finish();
 }
 
+// M6 FR-003 (TC-003, #180): the API command surface. Order is the
+// `help` order. MUST stay in sync with the dispatch truth
+// (FirmwareCore commandFromName + the prefix value parsers + the
+// Commands.cpp specials) - the T008 bench sweep is the drift catch.
+// Phasing (plan D5): calibrate/cal_next (M5) and chold/choltol/
+// choldclear (M4) join this table in their milestones, envelope-native.
+struct ApiCommandInfo {
+  const char* name;  // wire name, exact match
+  const char* args;  // argument hint for help; "" when value-less
+};
+
+inline constexpr ApiCommandInfo kApiCommands[] = {
+    {"en", ""},            {"off", ""},
+    {"zero", ""},          {"tare", ""},
+    {"pos", ""},           {"force", ""},
+    {"stop", ""},          {"rpm", "<U/min>"},
+    {"acc", "<U/min/s>"},  {"feed", "<mm/min>"},
+    {"move", "<mm>"},      {"turn", "<rev>"},
+    {"jog up", ""},        {"jog down", ""},
+    {"help", ""},          {"cal_zero", ""},
+    {"cal_apply", "<grams>"}, {"home", ""},
+    {"home top", ""},      {"test", ""},
+    {"testspeed", "<mm/min>"}, {"testarm", "<N>"},
+    {"testdrop", "<%>"},   {"data", "[from]"},
+    {"testdata", ""},      {"homeseek", "<mm/min>"},
+    {"hometimeout", "<s>"}, {"ends", ""},
+    {"lang", "<en|de>"},
+};
+
+inline constexpr size_t kApiCommandCount =
+    sizeof(kApiCommands) / sizeof(kApiCommands[0]);
+
+inline size_t apiCommandCount() { return kApiCommandCount; }
+
+inline const ApiCommandInfo& apiCommandAt(size_t i) {
+  return kApiCommands[i < kApiCommandCount ? i : kApiCommandCount - 1];
+}
+
+// D6: the help data payload - a JSON array of "name args" strings. This
+// is the documented >256 B exception once wrapped in the envelope
+// (FR-003/NFR); callers size the buffer accordingly.
+inline int formatApiHelpData(char* out, size_t cap) {
+  api_detail::LineBuilder b(out, cap);
+  b.put("[");
+  for (size_t i = 0; i < kApiCommandCount; ++i) {
+    b.put("%s\"%s%s%s\"", i > 0 ? "," : "", kApiCommands[i].name,
+          kApiCommands[i].args[0] != '\0' ? " " : "",
+          kApiCommands[i].args);
+  }
+  b.put("]");
+  return b.finish();
+}
+
 #endif  // API_RESPONSE_H

@@ -103,9 +103,14 @@ class TestRunner {
 
   // Run record (summary / testdata replies, T012). Peak force is the
   // detector's armed-phase peak; displacement is relative to the pull
-  // start (spec US2 "displacement mm").
-  float peakForceN() const { return detector_.peakForceN(); }
-  uint32_t peakIndex() const { return detector_.peakIndex(); }
+  // start (spec US2 "displacement mm"). The peak lives in the RUN RECORD
+  // (captured at finishRun), not in the detector: applyConfig() may run
+  // between the run and the report (e.g. a no-op `testspeed <same>`), and
+  // configure() resets the detector - break fields already survived this
+  // way; a detector-held peak did not (found on the bench 2026-10-11:
+  // testdata peak=0 after a no-op config write following a 127.87 N run).
+  float peakForceN() const { return runPeakForceN_; }
+  uint32_t peakIndex() const { return runPeakIndex_; }
   bool breakDetected() const { return breakDetected_; }
   float breakDisplacementMm() const { return breakPositionMm_; }
 
@@ -157,6 +162,8 @@ class TestRunner {
   bool homed_ = false;
   bool breakDetected_ = false;
   float breakPositionMm_ = 0.0f;
+  float runPeakForceN_ = 0.0f;  // run record; see peakForceN() note
+  uint32_t runPeakIndex_ = 0;
   float pullStartMm_ = 0.0f;
   unsigned long lastSampleMs_ = 0;
   unsigned long tailStartMs_ = 0;

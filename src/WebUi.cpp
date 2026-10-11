@@ -2,6 +2,7 @@
 #include <WiFi.h>
 
 #include "Diagnostics.h"
+#include "TestRunner.h"
 #include "Text.h"
 #include "UiHtml.h"
 
@@ -26,6 +27,7 @@ void WebUi::begin() {
   server_.on("/", HTTP_GET, [this] { handleRoot(); });
   server_.on("/api/status", HTTP_GET, [this] { handleStatus(); });
   server_.on("/api/command", HTTP_GET, [this] { handleCommandApi(); });
+  server_.on("/api/data", HTTP_GET, [this] { handleDataApi(); });
   server_.begin();
 }
 
@@ -35,7 +37,7 @@ void WebUi::handleClient() {
 
 String WebUi::statusJson() {
   String json;
-  json.reserve(900);  // jane: 722 B measured 2026-10-10 with 5 checks (EN), ~85 B per extra check -> ~900 B at M3's 7-check set
+  json.reserve(1100);  // jane: 722 B at 5 checks (2026-10-10) + ~230 B M7 cycle/run block
   // One steps() read for both fields: the motor task on core 0 can advance
   // the position between two reads, which would make them disagree.
   const long currentSteps = motion_.steps();
@@ -70,6 +72,29 @@ String WebUi::statusJson() {
   json += " | IP ";
   json += WiFi.softAPIP().toString();
   json += "\"";
+
+  // M7 FR-005/FR-008: tear-workflow surface. Cycle state via the pinned
+  // TestCycleModel::name() contract (same strings as the log grammar);
+  // the run object is the `testdata` facts the run summary renders.
+  // breakMm is meaningful only when break is true.
+  json += ",\"homed\":";
+  json += testRunner_.homed() ? "true" : "false";
+  json += ",\"testState\":\"";
+  json += TestCycleModel::name(testRunner_.testState());
+  json += "\"";
+  json += ",\"run\":{\"samples\":";
+  json += String(testRunner_.samples().count());
+  json += ",\"peakN\":";
+  json += String(testRunner_.peakForceN(), 2);
+  json += ",\"peakIndex\":";
+  json += String(testRunner_.peakIndex());
+  json += ",\"break\":";
+  json += testRunner_.breakDetected() ? "true" : "false";
+  json += ",\"breakMm\":";
+  json += String(testRunner_.breakDisplacementMm(), 2);
+  json += ",\"truncated\":";
+  json += testRunner_.samples().truncated() ? "true" : "false";
+  json += "}";
   // M2-T005 (FR-005): the JS dictionary follows the server locale, so the
   // serial `lang` command and the Web selector stay in sync (plan D3).
   json += ",\"locale\":\"";
@@ -159,4 +184,42 @@ void WebUi::handleCommandApi() {
   Serial.println(command);
   Serial.println(response);
   server_.send(ok ? 200 : 400, "application/json", jsonMessage(ok, response));
+}
+
+// M7 FR-006/FR-007: the run's samples as the exact M3 `data` CSV grammar
+// (formatCsvChunk is the single implementation - header, lines, END marker),
+// chunked so 8192 samples (~170 KB) never buffer in one String. The same
+// endpoint serves the curve fetch (FR-006) and the file download (FR-007,
+// Content-Disposition + the UI's download attribute).
+//
+// Exclusivity mirrors the `data` command policy: rejected while a cycle is
+// active or a serial dump is in flight. jane: this handler blocks the loop
+// task for the send duration (seconds on weak WiFi); acceptable because it
+// is unreachable while a test runs - the load cell and motor are idle.
+void WebUi::handleDataApi() {
+  if (testRunner_.active()) {
+    server_.send(400, "application/json",
+                 jsonMessage(false, msg(Msg::DumpBlockedRunning)));
+    return;
+  }
+  if (testRunner_.dumpInProgress()) {
+    server_.send(400, "application/json",
+                 jsonMessage(false, msg(Msg::DumpBusy)));
+    return;
+  }
+  server_.sendHeader("Content-Disposition",
+                     "attachment; filename=\"tensile-run.csv\"");
+  server_.setContentLength(CONTENT_LENGTH_UNKNOWN);
+  server_.send(200, "text/csv; charset=utf-8", "");
+  char chunk[512];
+  size_t next = 0;
+  while (true) {
+    const size_t written =
+        formatCsvChunk(testRunner_.samples(), next, chunk, sizeof(chunk), &next);
+    if (written == 0) {
+      break;  // complete (or empty buffer): header + lines + END are out
+    }
+    server_.sendContent(String(chunk, written));
+  }
+  server_.sendContent("");  // terminate the chunked transfer
 }

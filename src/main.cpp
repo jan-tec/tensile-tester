@@ -27,7 +27,7 @@ Diagnostics diagnostics;
 TestRunner testRunner(motion, loadcell, endstops, diagnostics);  // M3-T011
 Commands commands(settings, motion, loadcell, diagnostics, testRunner);  // M3-T012
 SerialCli serialCli(commands);
-WebUi webUi(commands, motion, loadcell, diagnostics);
+WebUi webUi(commands, motion, loadcell, diagnostics, testRunner);
 App app(settings, motion, loadcell, powerSense, endstops, testRunner,
         commands, serialCli, webUi, diagnostics);
 }  // namespace

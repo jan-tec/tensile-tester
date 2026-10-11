@@ -197,6 +197,8 @@ void TestRunner::beginPull(unsigned long nowMs) {
   pullStartMm_ = motion_.positionMm();
   breakDetected_ = false;
   breakPositionMm_ = 0.0f;
+  runPeakForceN_ = 0.0f;
+  runPeakIndex_ = 0;
   // CSV index 0 is the pull start (displacement 0, FR-004): force the
   // first sample on this very tick.
   lastSampleMs_ = nowMs - kSampleIntervalMs;
@@ -302,6 +304,12 @@ void TestRunner::reportHomingFault() {
 }
 
 void TestRunner::finishRun() {
+  // Capture the detector's peak into the run record BEFORE anything can
+  // reset the detector: the record must outlive post-run config writes
+  // (applyConfig -> detector_.configure -> reset). Homing-only runs keep
+  // 0 - the detector is armed during pulls only.
+  runPeakForceN_ = detector_.peakForceN();
+  runPeakIndex_ = detector_.peakIndex();
   // Restore the operator's speed setting (jog/move `rpm`); the driver
   // stays enabled - a finished run is not a fault.
   motion_.setOutputRpm(savedRpm_);

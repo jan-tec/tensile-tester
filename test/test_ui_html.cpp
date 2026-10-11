@@ -21,6 +21,16 @@ bool inHtml(const char *needle) {
   return std::strstr(INDEX_HTML, needle) != nullptr;
 }
 
+// Substring count for "exactly once" contracts (e.g. one global Stop).
+uint32_t countInHtml(const char *needle) {
+  uint32_t count = 0;
+  for (const char *p = INDEX_HTML; (p = std::strstr(p, needle)) != nullptr;
+       ++p) {
+    ++count;
+  }
+  return count;
+}
+
 // Every value of an HTML attribute like `data-cmd=` in the asset, deduplicated.
 // Returns empty on a scan-pattern regression - callers must assert non-empty
 // so a failed scan can never pass vacuously (#98 AC).
@@ -213,9 +223,13 @@ void test_i18n_dictionary_is_complete(void) {
       extractKeys(dictEnd, INDEX_HTML + strlen(INDEX_HTML), "t(\"", false,
                   true);  // real t(" calls only, not createElement("li")
   used.insert(used.end(), dynamic.begin(), dynamic.end());
-  // Indirect keys: the selftest status map feeds t() through its values.
-  const std::vector<std::string> indirect = {"stOk", "stWarn", "stFail",
-                                             "stNoConn", "stNoWired"};
+  // Indirect keys: the selftest status map and the cycle-state map feed t()
+  // through their values (t("ts" + state) is invisible to the literal scan).
+  const std::vector<std::string> indirect = {
+      "stOk", "stWarn", "stFail", "stNoConn", "stNoWired",
+      "tsIdle", "tsHoming", "tsPulling", "tsTail", "tsDone", "tsLimit",
+      "tsAborted", "tsError", "datumYes", "datumNo", "breakNone", "truncYes",
+      "truncNo", "errCycleActive"};
   used.insert(used.end(), indirect.begin(), indirect.end());
   std::sort(used.begin(), used.end());
   used.erase(std::unique(used.begin(), used.end()), used.end());
@@ -280,7 +294,7 @@ void test_all_data_cmd_values_are_known_commands(void) {
 // layer and this goes red.
 void test_all_data_prefix_values_are_value_commands(void) {
   static const char *kKnown[] = {"acc", "cal_apply", "feed", "move", "rpm",
-                                 "turn"};
+                                 "turn", "testspeed", "testarm", "testdrop"};
   static const char *kMotion[] = {"acc", "feed", "move", "rpm", "turn"};
 
   const std::vector<std::string> prefixes = htmlAttrValues("data-prefix=\"");
@@ -364,6 +378,98 @@ void test_i18n_dictionary_has_no_duplicate_keys(void) {
                                  "duplicate key in DE dictionary");
 }
 
+// --- M7 US3/FR-005..008: tear workflow surface --------------------------------
+
+// FR-005: Home, Start test and the operator-paced sample prompt are UI
+// elements; the buttons ride the shared data-cmd wiring (and are therefore
+// also covered by the known-command scan above).
+void test_tear_controls_present(void) {
+  TEST_ASSERT_TRUE_MESSAGE(inHtml("data-cmd=\"home\""),
+                           "home button missing (FR-005)");
+  TEST_ASSERT_TRUE_MESSAGE(inHtml("data-cmd=\"test\""),
+                           "start-test button missing (FR-005)");
+  TEST_ASSERT_TRUE_MESSAGE(inHtml("id=\"samplePrompt\""),
+                           "sample-insertion prompt missing (FR-005)");
+}
+
+// Taste probe C1-analog (#167): Stop used to render twice (jog row + axis
+// card). The redesign keeps ONE global, always-visible Stop - more would
+// blur which one is the emergency control.
+void test_single_global_stop(void) {
+  TEST_ASSERT_EQUAL_UINT32_MESSAGE(
+      1, countInHtml("data-cmd=\"stop\""),
+      "Stop must exist exactly once (one global emergency control)");
+}
+
+// FR-006/FR-007/FR-008: the run curve renders from the sample buffer and
+// the CSV downloads as a file - both from the /api/data endpoint added for
+// M7; the summary block carries the testdata facts.
+void test_csv_download_and_run_curve_wired(void) {
+  TEST_ASSERT_TRUE_MESSAGE(inHtml("href=\"/api/data\""),
+                           "CSV link does not target /api/data (FR-007)");
+  TEST_ASSERT_TRUE_MESSAGE(inHtml("download=\"tensile-run.csv\""),
+                           "CSV link lacks the download attribute (FR-007)");
+  TEST_ASSERT_TRUE_MESSAGE(inHtml("id=\"runChart\""),
+                           "run curve canvas missing (FR-006)");
+  TEST_ASSERT_TRUE_MESSAGE(inHtml("id=\"runSummary\""),
+                           "run summary block missing (FR-008)");
+}
+
+// US2 owner decision 2026-10-11 (#169): monochrome + exactly ONE accent -
+// red for Stop/danger. The retired hue families (green success, rust
+// accent pair, blue favicon/plot) must not survive the redesign.
+void test_visual_language_mono_single_accent(void) {
+  TEST_ASSERT_TRUE_MESSAGE(inHtml("--danger:"),
+                           "the single red accent variable is missing (#169)");
+  TEST_ASSERT_TRUE_MESSAGE(!inHtml("--success"),
+                           "a green accent variable exists: one accent only (#169)");
+  TEST_ASSERT_TRUE_MESSAGE(!inHtml("--accent"),
+                           "a second accent variable exists: one accent only (#169)");
+  TEST_ASSERT_TRUE_MESSAGE(!inHtml("#2b8bd9") && !inHtml("%232b8bd9"),
+                           "blue hue survives (favicon/plot line, taste gate 5)");
+  TEST_ASSERT_TRUE_MESSAGE(!inHtml("#2f6f4f"), "green hue survives (US2)");
+  TEST_ASSERT_TRUE_MESSAGE(!inHtml("#b14d25") && !inHtml("#8f3816"),
+                           "rust hues survive (US2)");
+}
+
+// Taste gates N9 (one radius scale: 8 px + 999 px pill for toggles) and 4
+// (respect prefers-reduced-motion on the jog/press transforms).
+void test_one_radius_scale_and_reduced_motion(void) {
+  TEST_ASSERT_TRUE_MESSAGE(inHtml("border-radius: 8px"),
+                           "base radius 8px missing (taste N9)");
+  static const char *kOldRadii[] = {
+      "border-radius: 12px", "border-radius: 14px", "border-radius: 16px",
+      "border-radius: 18px", "border-radius: 20px"};
+  for (const char *r : kOldRadii) {
+    TEST_ASSERT_TRUE_MESSAGE(!inHtml(r),
+                             ("retired radius value survived: " + std::string(r))
+                                 .c_str());
+  }
+  TEST_ASSERT_TRUE_MESSAGE(
+      inHtml("@media (prefers-reduced-motion: reduce)"),
+      "reduced-motion guard missing (taste gate 4)");
+}
+
+// Taste gate T6: the status register mixed cases ("OK" vs "warning").
+// EN display words are capitalized-first, uniformly.
+void test_status_words_case_unified(void) {
+  TEST_ASSERT_TRUE_MESSAGE(inHtml("\"stWarn\": \"Warning\""),
+                           "EN status words must be case-unified (taste T6)");
+  TEST_ASSERT_TRUE_MESSAGE(inHtml("\"stFail\": \"Fault\""),
+                           "EN status words must be case-unified (taste T6)");
+}
+
+// The tear panel exposes the M3 test configuration as value forms (same
+// prefixes as the serial grammar; clamped by the firmware).
+void test_tear_config_forms_present(void) {
+  TEST_ASSERT_TRUE_MESSAGE(inHtml("data-prefix=\"testspeed\""),
+                           "testspeed form missing");
+  TEST_ASSERT_TRUE_MESSAGE(inHtml("data-prefix=\"testarm\""),
+                           "testarm form missing");
+  TEST_ASSERT_TRUE_MESSAGE(inHtml("data-prefix=\"testdrop\""),
+                           "testdrop form missing");
+}
+
 void runUiHtmlTests(void) {
   RUN_TEST(test_index_html_has_content);
   RUN_TEST(test_index_html_declares_language_and_charset);
@@ -381,4 +487,11 @@ void runUiHtmlTests(void) {
   RUN_TEST(test_locale_survives_page_reload);
   RUN_TEST(test_number_inputs_have_visible_labels);
   RUN_TEST(test_i18n_dictionary_has_no_duplicate_keys);
+  RUN_TEST(test_tear_controls_present);
+  RUN_TEST(test_single_global_stop);
+  RUN_TEST(test_csv_download_and_run_curve_wired);
+  RUN_TEST(test_visual_language_mono_single_accent);
+  RUN_TEST(test_one_radius_scale_and_reduced_motion);
+  RUN_TEST(test_status_words_case_unified);
+  RUN_TEST(test_tear_config_forms_present);
 }

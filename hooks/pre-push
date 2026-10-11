@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # Client half of the PR-only `main` rule (AGENTS.md "Push Guardrail", #100).
 #
-# GitHub Free on a **private** repo cannot enforce this server-side: rulesets and
-# classic branch protection both answer 403 "Upgrade to GitHub Pro or make this
-# repository public" (re-verified against the API on 2026-10-10). So:
+# Since 2026-10-11 the canonical repo (jan-tec/tensile-tester, public) enforces
+# this server-side with the "main protection" ruleset - except for the repo
+# admin, who can bypass it. So:
 #
-#   * this hook prevents the accidental push on workstations that installed it,
+#   * this hook prevents the accidental push on workstations that installed it
+#     (including the admin's, where the server would accept it),
 #   * the `guard` job in .github/workflows/ci.yml detects any push that still
 #     reached main, from anywhere.
 #

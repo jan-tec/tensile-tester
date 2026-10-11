@@ -176,54 +176,67 @@ mv /tmp/main.cpp.bak src/main.cpp
   DE output uses ASCII transcription (ae/oe/ue/ss), web DE uses native
   umlauts (UTF-8). Keep source ASCII-only - do not introduce umlauts into
   .cpp/.ini.
-- Remotes: `origin` = satwareAG-ironMike/tensile-tester (mirror),
-  `upstream` = jan-tec/tensile-tester (single branch `main`).
-- **`gh` guardrail**: this workstation's shell exports
-  `GITHUB_PERSONAL_ACCESS_TOKEN`, which `gh` prefers over the stored OAuth
-  login and resolves repo context to the `jan-tec` account (verified
-  2026-08-20: a PR was accidentally created in `jan-tec/tensile-tester` and
-  closed immediately). Always pass
-  `--repo satwareAG-ironMike/tensile-tester` (or set `GH_REPO`) on every `gh`
-  command in this repo.
+- Remotes: `origin` = `jan-tec/tensile-tester` - the **canonical** repo
+  (public, owner `jan-tec`). Developers are collaborators there and push
+  their branches straight to `origin`. `satwareAG-ironMike/tensile-tester`
+  is a developer's private fork - optional; add it as remote `satware` only
+  to fetch its branches.
+- **Issue/PR numbers**: references up to `#222` (everything before
+  2026-10-11, e.g. `#100`, `#41`-`#43`) point at
+  `satwareAG-ironMike/tensile-tester`. Issues and PRs from 2026-10-11 on
+  live in `jan-tec/tensile-tester` (its PR #2 merged the fork's history).
+- **`gh` guardrail**: always pass `--repo jan-tec/tensile-tester` (or set
+  `GH_REPO`) on every `gh` command. A clone whose `origin` still points at a
+  fork, or a shell token for another account, otherwise resolves to the
+  wrong repo (happened 2026-08-20: a PR landed in the repo that was not
+  intended).
 
-## Branching & sync model (agreed 2026-08-19)
+## Branching & sync model (updated 2026-10-11)
 
 | Rule | Detail |
 |------|--------|
-| `upstream` | Read-only reference. `git fetch upstream` + inspect only. Never `git push` there. |
-| `origin/main` | Trunk, protected **by convention only** (process-only gate). All changes land here via PR. |
+| `origin/main` | Trunk in the canonical repo `jan-tec/tensile-tester`, protected **server-side** (see "Main protection" below). All changes land here via PR. |
+| Collaborators | `write` role (e.g. `satwareAG-ironMike`): push branches, open + merge PRs; cannot bypass the ruleset. The owner (repo admin) can. |
 | No permanent dev branch | Trunk-based; `main` is always shippable. |
-| Change flow | Short-lived branch (`fix/...`, `feat/...`, `docs/...`) -> PR -> squash merge into `main`. |
-| Upstream sync | `git fetch upstream` -> create `sync/upstream-YYYYMMDD` -> `git merge upstream/main` there -> PR -> squash/merge. **Never merge upstream directly into `main`.** |
-| Gate | Local `pio test -e native` + `pio run -e esp32dev` green before opening a PR (primary); the PR's CI `test` + `build` checks green before merge (independent second opinion). No automated enforcement exists. |
+| Change flow | Short-lived branch (`fix/...`, `feat/...`, `docs/...`) pushed to `origin` -> PR -> squash merge into `main` (GitHub appends `(#<n>)` to the subject). |
+| Fork sync | Work done in a fork comes in as a branch `sync/<fork>-YYYY-MM-DD` pushed to `origin` -> PR -> **merge commit**, not squash, so the fork's commits keep their SHAs and the fork can fast-forward to `origin/main` afterwards. Every non-merge commit in the range needs `(#<n>)` in its subject or the CI `guard` job turns red (PR #2: red on `aa59bde` for `165c0ac`, `d11ce75`, `3216ebf`). |
+| Gate | Local `pio test -e native` + `pio run -e esp32dev` green before opening a PR (primary); the PR's CI `test` + `build` checks green before merge - enforced by the ruleset. |
 
-**Why no hard gate (process-only):** `origin` is a **private** repo on a
-**free personal** account (`satwareAG-ironMike`). GitHub blocks both rulesets
-and classic branch protection on private repos without a paid plan - re-verified
-2026-10-10 against the live API, both endpoints answer
-`403 "Upgrade to GitHub Pro or make this repository public"`
-(`GET /repos/.../rulesets`, `GET /repos/.../branches/main/protection`). A
-**server-side** block on pushing `main` is therefore not available.
+## Main protection (server-side since 2026-10-11)
 
-What exists instead (client rules in "Push Guardrail" below):
+`jan-tec/tensile-tester` went public on 2026-10-11, which made rulesets
+available on GitHub Free (a private repo on a free personal account answers
+`403 "Upgrade to GitHub Pro or make this repository public"` for both rulesets
+and classic branch protection). Ruleset **"main protection"** (id `24887892`)
+targets the default branch:
+
+| Rule | Setting |
+|------|---------|
+| Pull request | required, 0 approvals (nobody can approve their own PR) |
+| Required status checks | `build`, `test` (GitHub Actions). Not `guard`: it only runs on push to `main`, so a PR would wait for it forever |
+| Force push / deletion | blocked |
+| Merge methods | merge, squash, rebase (merge commits are needed for fork syncs) |
+| Bypass | repository admin (the owner) only, always |
+
+Defense layers (client rules in "Push Guardrail" below):
 
 | Layer | Enforces | Defeatable by |
 |-------|----------|---------------|
-| `hooks/pre-push` | refuses pushes targeting `refs/heads/main`, and non-fast-forward pushes to any branch (branch deletions are allowed) | `--no-verify`, a clone that never set `core.hooksPath`, or `ALLOW_MAIN_PUSH=1` |
-| CI `guard` job | fails the run when a commit on `main` lacks `(#<n>)` | nothing - but it runs **after** the commit is on `main`: detection, not prevention |
+| Ruleset "main protection" | server-side: no direct push to `main`, no force-push or deletion, `build` + `test` green before merge | repo admin bypass |
+| `hooks/pre-push` | refuses pushes targeting `refs/heads/main`, and non-fast-forward pushes to any branch (branch deletions are allowed) - catches the mistake before the server does, and still guards the admin, whose push the server would accept | `--no-verify`, a clone that never set `core.hooksPath`, or `ALLOW_MAIN_PUSH=1` |
+| CI `guard` job | fails the run when a commit on `main` lacks `(#<n>)` - detects admin-bypass pushes | nothing - but it runs **after** the commit is on `main`: detection, not prevention |
 | Human review | the actual content gate | - |
 
-A direct push to `main` is still technically possible - it is now blocked locally
-by default and turns CI red if it happens anyway. For a real hard gate: upgrade
-the account to GitHub Pro, or make the repo public (rulesets are free on public
-repos). Note this repo mirrors `jan-tec/tensile-tester` (read-only `upstream`), so
-visibility is a client-relationship decision, not a repo-local setting.
+Before 2026-10-11 the canonical repo was private, so only the hook, the
+`guard` job and human review existed; `satwareAG-ironMike/tensile-tester` is
+still private and has no server-side protection.
 
 ## Push Guardrail (agent sessions)
 
-`main` protection here is **convention only** (private repo, free personal
-account), so a direct push to `main` succeeds silently. It happened once
-(`165c0ac`, see #100). Rules that make it impossible to repeat by accident:
+The server rejects a direct push to `main` from collaborators, but the owner's
+admin bypass means such a push from the owner's account succeeds silently. It
+happened once, before server-side protection existed (`165c0ac`, see #100 in
+the satware fork). Rules that make it impossible to repeat by accident:
 
 | Rule | Detail |
 |------|--------|
@@ -231,10 +244,10 @@ account), so a direct push to `main` succeeds silently. It happened once
 | Confirm the branch before pushing | `git branch --show-current` must print the intended branch; if it prints `main`, stop |
 | Don't chain `switch` with `commit`/`push` | `git switch -c x && git commit ...` hides a failed switch, and the commit lands on the previous branch |
 | Confirm after `switch -c` | the command's exit code is not evidence; read `git branch --show-current` |
-| Audit | non-merge commits on `main` whose subject lacks `(#<n>)` are direct pushes. Verified command: `git log --no-merges --format="%h %s" origin/main \| grep -vE '\(#[0-9]+\)$'` - baseline 2026-10-10: 10 hits, 9 pre-date the 2026-08-19 PR flow, 1 is #100 |
+| Audit | non-merge commits on `main` whose subject lacks `(#<n>)` are direct pushes. Verified command: `git log --no-merges --format="%h %s" origin/main \| grep -vE '\(#[0-9]+\)$'` - baseline 2026-10-11 (`origin` = `jan-tec/tensile-tester`): 10 hits - 8 pre-date the 2026-08-19 PR flow, `165c0ac` is #100, `d11ce75` was pushed directly on 2026-10-05 |
 
-**Enforcement lives in the repo** - the layer table under "Why no hard gate"
-above lists what each layer enforces and where (`hooks/pre-push`, the `guard`
+**Enforcement** - the layer table under "Main protection" above lists what each
+layer enforces and where (the ruleset on GitHub, `hooks/pre-push`, the `guard`
 job in `.github/workflows/ci.yml`, human review).
 
 Both were tested before shipping: 6 hook cases (main blocked, `ALLOW_MAIN_PUSH=1`
@@ -244,7 +257,8 @@ allowed) and the audit run against real history - green on
 
 Owner overrides (use deliberately, and put `(#<n>)` in the commit subject so the CI
 audit still passes): `ALLOW_MAIN_PUSH=1 git push ...`, `ALLOW_FORCE_PUSH=1 git push
---force-with-lease ...`.
+--force-with-lease ...`. On `main` they only get past the hook - the server still
+rejects them for everyone except the repo admin.
 
 ## Installing the hook (every clone, every agent session)
 
@@ -253,8 +267,9 @@ git config core.hooksPath hooks      # active from the next push onward
 ```
 
 `core.hooksPath` is local to the clone, so it is **not** inherited by a fresh
-`git clone` - a session that skips this step has no client-side guard, only the CI
-audit. Verify with `git config core.hooksPath` (must print `hooks`).
+`git clone` - a session that skips this step has no client-side guard, only the
+server ruleset and the CI audit. Verify with `git config core.hooksPath` (must
+print `hooks`).
 
 ## No-Quirk Policy (NQP)
 

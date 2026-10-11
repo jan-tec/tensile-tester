@@ -9,7 +9,7 @@ plan.md = HOW, tasks.md = issue backlog). **One task = one issue = one PR.**
 | **M1** | Startup selftest & health diagnostics | active | M0 | `specs/M1-startup-selftest/` |
 | **M2** | i18n DE/EN, English primary | done | M1 | `specs/M2-i18n-de-en/` |
 | **M3** | Automated tensile test cycle | active | M1, #71 | `specs/M3-tensile-test-cycle/` |
-| **M4** | Constant-force hold | planned | M3 | `specs/M4-constant-force-hold/` |
+| **M4** | Constant-force hold | planned (plan/tasks ready 2026-10-11, T001-T009 = #205-#213) | M3 | `specs/M4-constant-force-hold/` |
 | **M5** | Load cell calibration | planned | M3, M6 | `specs/M5-loadcell-calibration/` |
 | **M6** | Serial JSON API | done (2026-10-11, #185-#194) | M2, M3 | `specs/M6-serial-json-api/` |
 | **M7** | Web UI redesign | done (2026-10-10, #172/#173) | - | `specs/M7-web-ui-redesign/` |
@@ -29,6 +29,7 @@ GitHub Issues are **enabled** on this repo (2026-08-20, via owner-level API
 | M3 | #118-#157 (T003-T014 + NQP/RED stream) |
 | M8 | #132-#136 (T001-T004) |
 | M7 | #167-#172 (US2/US3 + spec + impl) |
+| M4 | #205-#213 (T001-T009, milestone #11) |
 | M6 | #177-#184 (T001-T008, all closed) |
 | Quirks | #41-#43 (NQP stream, grows as implementation runs) |
 

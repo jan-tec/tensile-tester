@@ -16,7 +16,7 @@ list changes, sync the GitHub issues in the same PR (AGENTS.md).
       reasons time/stop/limit/lost/fault, duration accounting.
       Host: transition-table tests incl. collapse + limit.
       Issue: M4-T002
-- [ ] **T003** Control law + accounting (D3, TC-003/TC-002/TC-005):
+- [x] **T003** Control law + accounting (D3, TC-003/TC-002/TC-005):
       deadband + rate-limited correction (0.05 mm/tick cap), overshoot
       bound proof on the pure model, mean/maxDev/inBand/creep pure
       functions. Host: synthetic-series tests.

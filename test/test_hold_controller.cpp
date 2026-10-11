@@ -5,6 +5,8 @@
 
 #include <HoldController.h>
 
+#include <cstdio>
+
 namespace {
 HoldController::Inputs baseInputs() {
   HoldController::Inputs in{};
@@ -291,6 +293,100 @@ void test_hold_nonfinite_tick_ignored(void) {
   TEST_ASSERT_EQUAL_INT(0, out.seekDir);  // no decision on a bad tick
 }
 
+// TC-005: accounting on a scripted in-band hold.
+void test_hold_report_in_band_run(void) {
+  HoldController c;
+  c.start(tensionTargets());  // 50 N, 5%, 5000 ms
+  HoldController::Inputs in = baseInputs();
+  step(c, in, 25.0f, 1000);  // contact
+  for (uint32_t t = 1100, i = 0; t < 6000; t += 100, ++i) {
+    step(c, in, 50.0f + (i % 2 ? 1.0f : -1.0f), t);  // +/-1 N = in band
+  }
+  const HoldController::Report r = c.report();
+  TEST_ASSERT_EQUAL_UINT32(49, r.holdTicks);  // 1100..5900 entered at 6000
+  TEST_ASSERT_FLOAT_WITHIN(0.01f, 2449.0f / 49.0f, r.meanForceN);  // 25x49,24x51
+  TEST_ASSERT_FLOAT_WITHIN(0.01f, 2.0f, r.maxDevPct);
+  TEST_ASSERT_FLOAT_WITHIN(0.01f, 100.0f, r.inBandPct);
+}
+
+// TC-005: a drifting run spends part of the ticks out of band and the
+// creep travel reflects the net carriage motion.
+void test_hold_report_drifting_run(void) {
+  HoldController c;
+  c.start(tensionTargets());
+  HoldController::Inputs in = baseInputs();
+  in.positionMm = 10.0f;  // staged BEFORE contact: this is the hold start
+  step(c, in, 25.0f, 1000);
+  // 10 in-band ticks then the sample yields: force sinks, loop chases.
+  for (uint32_t t = 1100; t < 2100; t += 100) {
+    step(c, in, 50.0f, t);
+  }
+  for (uint32_t t = 2100; t < 5100; t += 100) {
+    in.positionMm += 0.05f;  // the applied outward corrections travel
+    step(c, in, 35.0f, t);   // stubbornly out of band (30% dev)
+  }
+  in.positionMm += 0.05f;
+  step(c, in, 35.0f, 5100);  // ...until the duration ends
+  const HoldController::Report r = c.report();
+  TEST_ASSERT_FLOAT_WITHIN(0.01f, 1585.0f / 41.0f, r.meanForceN);  // 10x50+31x35
+  TEST_ASSERT_FLOAT_WITHIN(0.1f, 30.0f, r.maxDevPct);              // |35-50|/50
+  TEST_ASSERT_FLOAT_WITHIN(0.1f, 10.0f * 100.0f / 41.0f, r.inBandPct);
+  TEST_ASSERT_FLOAT_WITHIN(0.01f, 31 * 0.05f, r.creepMm);  // 30 loop + 1 final
+}
+
+// TC-002: first-peak overshoot bound on the pure closed loop. Sample
+// modeled as a linear spring; worst documented envelope: the +10% bound
+// (spec) holds for stiffness <= 100 N/mm at setpoint 50 N (k_bound =
+// setpoint * 10% / rate 0.05 mm); stiffer fixtures need bench tuning
+// (approach threshold or choltol), documented in the plan risk table.
+void test_hold_overshoot_bound_spring_sweep(void) {
+  const float stiffness[] = {5.0f, 25.0f, 50.0f, 100.0f};
+  for (float k : stiffness) {
+    HoldController c;
+    c.start(tensionTargets());  // 50 N, tol 5%
+    HoldController::Inputs in = baseInputs();
+    in.positionMm = 0.0f;
+    float force = 0.0f;
+    float peak = 0.0f;
+    uint32_t contactPos = 0;
+    // Approach at 30 mm/min = 0.05 mm/tick (the machine cap): the spring
+    // force rises k * 0.05 per tick until contact threshold.
+    for (uint32_t t = 1000; t < 20000; t += 100) {
+      in.forceN = force;
+      in.positionMm += 0.05f;
+      in.nowMs = t;
+      const HoldController::Output out = c.tick(in);
+      if (out.phase == HoldController::Phase::Holding) {
+        contactPos = t;
+        break;
+      }
+      if (out.phase != HoldController::Phase::Approach ||
+          out.seekDir != 1) {
+        TEST_FAIL_MESSAGE("approach never contacted");
+      }
+      force = k * in.positionMm;  // spring: carriage climbing the sample
+    }
+    // Closed loop: apply the emitted corrections to the spring.
+    for (uint32_t t = contactPos; t < contactPos + 20000; t += 100) {
+      in.nowMs = t;
+      const HoldController::Output out = c.tick(in);
+      in.positionMm += out.correctionMm;
+      force = k * in.positionMm;
+      in.forceN = force;
+      if (force > peak) {
+        peak = force;
+      }
+      if (out.phase != HoldController::Phase::Holding &&
+          out.phase != HoldController::Phase::Done) {
+        break;  // lost/limit: out of the overshoot question's scope
+      }
+    }
+    char msg[64];
+    snprintf(msg, sizeof(msg), "k=%.0f peak=%.2f", k, peak);
+    TEST_ASSERT_LESS_OR_EQUAL_FLOAT_MESSAGE(55.0f, peak, msg);  // +10%
+  }
+}
+
 void runHoldControllerTests() {
   RUN_TEST(test_hold_idle_stays_idle);
   RUN_TEST(test_hold_start_waits_for_homing);
@@ -310,4 +406,7 @@ void runHoldControllerTests() {
   RUN_TEST(test_hold_device_fault_aborts);
   RUN_TEST(test_hold_terminal_latches_and_restart_allowed);
   RUN_TEST(test_hold_nonfinite_tick_ignored);
+  RUN_TEST(test_hold_report_in_band_run);
+  RUN_TEST(test_hold_report_drifting_run);
+  RUN_TEST(test_hold_overshoot_bound_spring_sweep);
 }

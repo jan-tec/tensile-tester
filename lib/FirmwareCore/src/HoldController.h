@@ -121,6 +121,31 @@ class HoldController {
   Phase phase() const { return phase_; }
   End endReason() const { return end_; }
 
+  // TC-005 report (valid whenever holdTicks() > 0; callers render it on
+  // terminal phases). Derived pure - the accumulators live in the FSM.
+  struct Report {
+    float meanForceN;   // signed mean of the hold ticks
+    float maxDevPct;    // max |deviation| as % of |setpoint|
+    float inBandPct;    // % of hold ticks inside the tolerance band
+    float creepMm;      // travel during the hold (positive = up)
+    uint32_t holdTicks;
+  };
+  Report report() const {
+    Report r{};
+    r.holdTicks = holdTicks_;
+    if (holdTicks_ == 0) {
+      return r;
+    }
+    const float magnitude =
+        targets_.setpointN < 0.0f ? -targets_.setpointN : targets_.setpointN;
+    r.meanForceN = forceSumN_ / static_cast<float>(holdTicks_);
+    r.maxDevPct = 100.0f * maxAbsDevN_ / magnitude;
+    r.inBandPct = 100.0f * static_cast<float>(inBandTicks_) /
+                  static_cast<float>(holdTicks_);
+    r.creepMm = endPosMm_ - holdStartPosMm_;
+    return r;
+  }
+
   // Accumulators (valid after the run; TC-005 reads them).
   uint32_t holdTicks() const { return holdTicks_; }
   uint32_t inBandTicks() const { return inBandTicks_; }
@@ -139,6 +164,9 @@ class HoldController {
     if (!std::isfinite(in.forceN) || !std::isfinite(in.positionMm)) {
       return out;  // ignore the tick entirely (Homing convention)
     }
+    // Live creep: the report stays readable DURING a hold (web status,
+    // bench progress), not only after finish().
+    endPosMm_ = in.positionMm;
     if (in.deviceFault) {
       finish(Phase::Aborted, End::Fault, in);
       out.phase = phase_;

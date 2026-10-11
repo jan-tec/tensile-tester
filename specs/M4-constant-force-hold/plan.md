@@ -87,6 +87,7 @@ controls are a later, separate PR per #172).
 |------|------------|
 | Force sign inverted at the bench (A2) | cal_zero/cal_apply path re-verified in T008 before the first tension hold; compression SC-002 gated on A1 hardware |
 | Loop oscillation on stiff samples | D3 rate limit + deadband; `choltol` tunable per sample; bench matrix in T008 sweeps tolerance |
+| Overshoot bound depends on sample stiffness | TC-002 sweep proves the +10% bound for k <= 100 N/mm @ 50 N (k_bound = setpoint x 10% / 0.05 mm rate); stiffer fixtures documented as bench-tuning territory (threshold/choltol) |
 | Chasing a lost sample to a limit | D5 Lost abort + both endstops remain hard bounds (Limit end reason) |
 | Long holds overwrite data silently | `overwritten` count in summary + event (D6) |
 

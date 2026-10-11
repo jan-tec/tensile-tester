@@ -8,7 +8,7 @@ WiFi-AP web UI, serial CLI.
 
 | Path | Purpose |
 |------|---------|
-| `src/main.cpp` | Composition root (31 lines): global module wiring + `setup()`/`loop()` delegation to App |
+| `src/main.cpp` | Composition root (41 lines): global module wiring + `setup()`/`loop()` delegation to App |
 | `src/App.{h,cpp}` | Orchestration: boot sequence (Serial, Motion, banner, LoadCell, Diagnostics selftest, Web) + main loop + driver-off on Error (FR-009) |
 | `src/Commands.{h,cpp}` | Command policy: `execute()` shared by serial and Web; FirmwareCore parser via `String` adapter |
 | `src/SerialCli.{h,cpp}` | Serial 115200 input loop (line buffer, CR skip, LF dispatch, help on unknown) |
@@ -16,12 +16,16 @@ WiFi-AP web UI, serial CLI.
 | `src/UiHtml.h` | Pure data: the PROGMEM `INDEX_HTML` asset (no logic, SC-001) |
 | `src/Motion.{h,cpp}` | FastAccelStepper (RMT hardware-timed steps), enable/disable, moves, rpm/accel |
 | `src/LoadCell.{h,cpp}` | HX711 10 Hz sampling + low-pass (0.18), tare, two-step calibration |
-| `src/Settings.{h,cpp}` | NVS Preferences namespace `testmachine`: calibration factor + valid flag |
-| `src/Diagnostics.{h,cpp}` | Boot selftest (SelfTest state): 5 checks BOARD/NVS/POWER/HX711/MOTOR, `BOOT`/`STATE`/`CHECK` log grammar (FR-007), owns the DeviceModel |
+| `src/Settings.{h,cpp}` | NVS Preferences namespace `testmachine`: calibration factor + valid flag, locale, TestConfig (test speed/arm/drop, homing clearance/seek/timeout, hold tolerance/clearance/max) |
+| `src/Diagnostics.{h,cpp}` | Boot selftest (SelfTest state): 7 checks BOARD/NVS/POWER/HX711/MOTOR/ENDSTOP1/ENDSTOP2, `BOOT`/`STATE`/`CHECK` log grammar (FR-007), owns the DeviceModel |
 | `src/PowerSense.{h,cpp}` | 5 V rail sense: GPIO34 10 k/10 k divider, one-shot boot read + 1 Hz runtime monitor (FR-005) |
 | `src/ErrorCode.h` | Stable machine codes + check vocabulary (pure, host-testable) - never renumber codes |
 | `src/IMotion.h`, `src/ILoadCell.h` | Contracts (FR-007): App depends on them, Motion/LoadCell implement them |
-| `lib/FirmwareCore/` | Pure C++ gear/feed math, command parser, device state machine, health evaluation, serial API envelope (no Arduino) - unit-tested on the host |
+| `src/Endstops.{h,cpp}` | Endstop inputs: GPIO 25 bottom (datum) / GPIO 26 top (limit), `INPUT_PULLUP`, 3-sample debounce, rising edges cleared on read, boot snapshot (M3 FR-001) |
+| `src/TestRunner.{h,cpp}` | Cycle orchestration (M3/M4): staged homing FSM, tensile pull with break detect, constant-force hold, SampleBuffer + chunked CSV dump, ticked from `App::loop()` |
+| `src/LedStatus.{h,cpp}` | LED status language (M8): LEDC PWM on GPIO2, DeviceState -> base patterns, endstop/break/cal overlays, flash-safe (<= 3 edges/s) |
+| `src/Text.{h,cpp}` | Locale message tables (M2): `Msg` enum + EN/DE rows from one X-macro, `lang` persisted in NVS |
+| `lib/FirmwareCore/` | Pure C++ gear/feed math, command parser, device state machine, health evaluation, homing + test-cycle + hold models, break detector, sample buffer/CSV, LED patterns, serial API envelope (no Arduino) - unit-tested on the host |
 | `test/` | Unity host tests (`pio test -e native`) |
 | `standalone_tests/` | Debug sketches (blink, raw loadcell, motor menu) - NOT built automatically (see below) |
 | `include/` | Empty scaffolding, README only |
@@ -132,9 +136,10 @@ mv /tmp/main.cpp.bak src/main.cpp
 - **Two control paths share `Commands::execute()`**: serial CLI (115200,
   input loop in `SerialCli`) and Web API `GET /api/command?cmd=<string>`
   (yes, commands are GET, routes in `WebUi`). Add a command once, both paths
-  get it. Commands: `en` `off` `zero` `tare` `pos` `force` `stop` `rpm <U/min>`
-  `acc <U/min/s>` `feed <mm/min>` `move <mm>` `turn <revs>` `jog up|down`
-  `cal_zero` `cal_apply <grams>` `home` `home top` `test`
+  get it. Commands: `en` `off` `zero` `tare` `pos` `force` `stop` `help`
+  `rpm <U/min>` `acc <U/min/s>` `feed <mm/min>` `move <mm>` `turn <revs>`
+  `jog up|down` `cal_zero` `cal_apply <grams>` `home` `home top` `test`
+  `chold <N> [minutes]` `choltol <%>` `choldclear <mm>` `choldmax <N>`
   `testspeed <mm/min>` `testarm <N>` `testdrop <%>` `data [from-index]`
   `testdata` `homeseek <mm/min>` `hometimeout <s>` `ends` `lang <en|de>`.
   A third read-only path serves run data: `GET /api/data` streams the sample
@@ -154,6 +159,20 @@ mv /tmp/main.cpp.bak src/main.cpp
 - Loadcell (`LoadCell`): HX711 on GPIO 32/33, sampled at 10 Hz in the loop
   task, low-pass filtered (alpha 0.18). Calibration factor + valid flag
   persist in NVS Preferences namespace `testmachine` (`Settings`).
+- **Test cycle + homing + hold (M3/M4, 2026-10):** `TestRunner` (ticked from
+  `App::loop()`) owns the staged homing FSM (BackOff -> SeekDown ->
+  FinalSeek; datum = zero at the stage-2 trigger), the tensile pull
+  (arm -> track peak -> break-detect drop -> tail), and the constant-force
+  hold (`HoldController`: approach -> holding band, lost-rule, time/limit
+  ends; `choldmax` per-sample ceiling + approach-lost rule, #220/#221).
+  Samples land in an 8192-entry buffer; `data [from]` streams it as CSV in
+  128 B chunks from the loop task (exact-once resume grammar). Cycle
+  commands are exclusive with each other, with plain moves and with an
+  in-flight dump (`#158`); config knobs persist via `Settings::saveTestConfig`.
+- **Serial JSON envelope (M6):** `Commands::execute()` fills an
+  `ApiReplyMeta`; `lib/FirmwareCore/src/ApiResponse.h` renders the envelope
+  (reply/event kinds, state snapshot per line, `help`/`pos` data fragments)
+  - serial hosts parse JSON, the web HTTP body stays the plain message.
 - The web UI is the PROGMEM string `INDEX_HTML` in `src/UiHtml.h` (served by
   `WebUi`). M7 redesign (2026-10-11, #172): monochrome + single red danger
   accent, one global sticky Stop; tear workflow is first-class (Home ->
@@ -185,6 +204,23 @@ mv /tmp/main.cpp.bak src/main.cpp
   2026-10-11, e.g. `#100`, `#41`-`#43`) point at
   `satwareAG-ironMike/tensile-tester`. Issues and PRs from 2026-10-11 on
   live in `jan-tec/tensile-tester` (its PR #2 merged the fork's history).
+  All open fork issues were migrated verbatim on 2026-10-11 and the old
+  ones closed with pointers:
+
+  | old (fork) | new (jan-tec) | topic |
+  |------------|---------------|-------|
+  | #27 | #5 | M1-T008 power divider hardware |
+  | #30 | #6 | M1-T011 target matrix TC-003 |
+  | #48 | #7 | M0 bench verification cal_apply (quirk) |
+  | #82 | #8 | M5 weight suggestion |
+  | #96 | #9 | web UI automated bench test |
+  | #136 | #10 | M8-T004 docs + close |
+  | #156 | #11 | M3-T014 bench matrix B1-B9 |
+  | #174 | #12 | M4 constant-force hold umbrella |
+  | #208 | #13 | M4-T004 buffer keep-last ring |
+  | #211 | #14 | M4-T007 web hold surface |
+  | #212 | #15 | M4-T008 bench SC-001/SC-004 |
+  | #213 | #16 | M4-T009 bench SC-003/SC-002, close M4 |
 - **`gh` guardrail**: always pass `--repo jan-tec/tensile-tester` (or set
   `GH_REPO`) on every `gh` command. A clone whose `origin` still points at a
   fork, or a shell token for another account, otherwise resolves to the

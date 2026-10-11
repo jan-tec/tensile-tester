@@ -13,6 +13,41 @@ and API).
 
 ### Added
 
+- Constant-force hold, M4 core (2026-10-11, #205-#213 stream): `HoldConfig`
+  fields in `TestConfig` (tolerance/clearance/max, NVS round-trip, clamped),
+  pure `HoldController` FSM (approach -> holding band, lost-rule with 2-tick
+  confirm, time/stop/limit/lost/fault end reasons, mean/maxDev/inBand/creep
+  accounting), `TestRunner` Hold mode reusing the homing stages,
+  `chold <N> [min]` / `choltol` / `choldclear` / `choldmax` commands,
+  `hold_summary` runner event, `choldmax` per-sample ceiling + approach-lost
+  rule after the #220 probe-loss incident, permanent HOP telemetry in
+  `ends` (#221/#222). First bench holds passed (SC-001-style: 18.5-18.6 N
+  steady at a 20 N setpoint, in-band 94.2%). Formal SC evidence open
+  (M4-T008/T009). Spec: `specs/M4-constant-force-hold/`
+- Web UI redesign, M7 (2026-10-11, #172/#173): monochrome single-red-accent
+  operator surface, one global sticky Stop, first-class tear workflow
+  (Home -> sample prompt -> Start test -> run summary -> force-displacement
+  curve -> CSV download via `GET /api/data`), test settings forms, EN/DE
+  dictionary (web DE with native umlauts), Selbsttest card; run summary
+  peak survives a no-op config write
+- Serial JSON API, M6 (2026-10-11, #185-#194): locale-neutral JSON envelope
+  for serial replies and runner events (`lib/FirmwareCore/src/ApiResponse.h`,
+  one state snapshot per line, `help`/`pos` data fragments); the web HTTP
+  body stays the plain message. Spec: `specs/M6-serial-json-api/`
+- M3 target wiring + bench close-out (2026-10-10/11, #133/#142/#144/#148/
+  #151/#153/#162/#163/#165/#166/#219): `Endstops` selftest rows (7 checks),
+  `TestRunner` homing/pull/tail orchestration, `home`/`home top`/`test` +
+  config/dump commands, DIR polarity fix (`dirHighCountsUp=false` - `move +5`
+  is physically UP), `homeseek`/`hometimeout` knobs, staged-homing datum
+  achieved on the bench (`Travel -0.001 mm`) after the same-tick
+  forceStop/re-command race fix, switch-repeatability allowance in the
+  homing trigger guards, full cycle B1 evidence (155.71 N @ 11.67 mm break,
+  598 samples, clean CSV + resumable dump)
+- `docs/calibration.md` (2026-10-11, #82 stream): weight-sizing guidance
+  (calibrate near the working load, ~80% of expected max; mass accuracy
+  dominates; no traceability claim). Bench calibration 2026-10-11: 2465 g
+  reference mass, factor 8.923326 counts/g, two-sided verification ~0.3%
+
 - LED status language (M8, #128/#132/#134/#136, 2026-10-10): `lib/FirmwareCore/src/LedPattern.h`
   pure pattern engine (5 base patterns as functions of time, 2-rep event
   overlays latest-wins, Error phase-restart + overlay drop, gamma-2.2 duties
@@ -230,6 +265,18 @@ and API).
 
 ### Known limitations
 
-- Automatic test modes ("Ziehen bis Bruch", "Kraft halten") are not
-  implemented; the scaffolding for them was removed in #3 and will be
-  re-added in the PR that implements the first mode.
+- Hold-mode formal bench evidence open (M4-T008/T009): needs a surviving
+  test sample; two samples broke below rating (grip stick-slip suspected).
+- Web hold view and the sample-buffer keep-last ring are open (M4-T007/T004,
+  jan-tec #14/#13); the buffer currently stops capture at 8192 samples and
+  flags `truncated`.
+- Guided calibration wizard (`calibrate <grams>`, M5 FR-001) not
+  implemented; the manual `cal_zero`/`cal_apply` path is the working
+  surface (single cal point; linearity above the 2.465 kg reference mass
+  unverified, jan-tec #7).
+- 5 V rail divider on GPIO34 not built (jan-tec #5): the POWER check reads
+  `NOT_WIRED` and B6 of the M3 bench matrix stays open.
+- Web UI JS has no automated bench test (jan-tec #9); the M7 redesign
+  invalidated the recorded pre-redesign manual baseline.
+- Serial/web `feed` clamp stays 0.5-60 mm/min; the bench hard max is the
+  owner directive 12 mm/min (operator discipline, not enforced in firmware).

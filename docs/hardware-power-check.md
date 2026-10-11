@@ -1,7 +1,8 @@
 # 5 V rail sense: build, verify, interpret (T008 / T011)
 
 The POWER check senses the 5 V supply rail through a resistive divider on
-GPIO34. This page documents how to build the divider (T008, issue #27),
+GPIO34. This page documents how to build the divider (T008, jan-tec issue
+#5, migrated from the fork's #27),
 how to verify it, and what the POWER check result means (T011, TC-003).
 
 ## Circuit

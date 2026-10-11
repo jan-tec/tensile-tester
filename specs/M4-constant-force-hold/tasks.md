@@ -30,11 +30,11 @@ list changes, sync the GitHub issues in the same PR (AGENTS.md).
       per-tick controller drive, endstop Limit, power fault -> fault
       end reason, stop. Target smoke: first bench hold.
       Issue: M4-T005
-- [ ] **T006** Command surface + envelope (D8/D9): execute() gates,
+- [x] **T006** Command surface + envelope (D8/D9): execute() gates,
       Msg rows (EN/DE ASCII-safe), help rows, `hold_summary` runner
       event in ApiResponse + state snapshot fields. Host: formatter
       exact-string tests + locale coverage gate.
-      Issue: M4-T006
+      Issue: M4-T006 (merged 2026-10-11 with #221 + #222 telemetry)
 - [ ] **T007** Web view-only (D10): cycleState names Approach/Holding,
       hold facts in the /api/status run block. Host: UiHtml/statusJson
       pins. Bench: view-only during a hold.
@@ -45,8 +45,8 @@ list changes, sync the GitHub issues in the same PR (AGENTS.md).
       Issue: M4-T008
 - [ ] **T009** Bench SC-003 + SC-002: cut-the-sample -> `lost` (motor
       stopped, no limit contact); compression cycle on the operator's
-      A1 arrangement. Close #174 + M4 milestone.
-      Issue: M4-T009
+      A1 arrangement. Close #12 + M4 milestone.
+      Issue: M4-T009 (jan-tec #16)
 
 ## Order
 

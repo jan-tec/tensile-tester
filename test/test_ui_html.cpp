@@ -489,6 +489,13 @@ void test_ui_detects_device_reboot_via_uptime(void) {
   TEST_ASSERT_TRUE(inHtml("deviceRebooted"));
 }
 
+void test_ui_status_fetch_has_timeout(void) {
+  // Bench-found (reboot under an open page): a silently-dead TCP
+  // connection (ESP reboot sends no FIN/RST) hangs fetch() forever -
+  // polling must abort and fall into the stale/backoff path.
+  TEST_ASSERT_TRUE(inHtml("AbortSignal.timeout"));
+}
+
 void runUiHtmlTests(void) {
   RUN_TEST(test_index_html_has_content);
   RUN_TEST(test_index_html_declares_language_and_charset);
@@ -501,6 +508,7 @@ void runUiHtmlTests(void) {
   RUN_TEST(test_ui_status_poll_uses_backoff_not_fixed_interval);
   RUN_TEST(test_ui_has_stale_banner_hooks);
   RUN_TEST(test_ui_detects_device_reboot_via_uptime);
+  RUN_TEST(test_ui_status_fetch_has_timeout);
   RUN_TEST(test_i18n_dictionary_has_both_locales);
   RUN_TEST(test_i18n_dictionary_is_complete);
   RUN_TEST(test_all_data_cmd_values_are_known_commands);

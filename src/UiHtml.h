@@ -973,7 +973,11 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
 
     async function refreshStatus() {
       try {
-        const response = await fetch("/api/status");
+        // #95: bounded fetch - an ESP reboot kills established TCP
+        // silently (no FIN/RST); without a timeout the poll hangs on
+        // the dead socket forever and the page never goes stale.
+        const response = await fetch("/api/status",
+                                     { signal: AbortSignal.timeout(2000) });
         const data = await response.json();
         if (data.locale && data.locale !== locale) {
           applyLocale(data.locale);  // serial `lang` flips the UI live

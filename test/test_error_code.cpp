@@ -137,6 +137,47 @@ void test_check_status_names(void) {
   TEST_ASSERT_EQUAL_STRING("?", checkStatusName(static_cast<CheckStatus>(99)));
 }
 
+// #177 (M6-T001): the 0x06xx API block - serial envelope error codes
+// (plan D8, spec FR-004). Values are frozen the moment they ship - never
+// renumber; names follow the UPPER_SNAKE grammar like every other block.
+void test_api_error_block(void) {
+  TEST_ASSERT_EQUAL_UINT16(
+      0x0601, static_cast<uint16_t>(ErrorCode::UnknownCommand));
+  TEST_ASSERT_EQUAL_UINT16(
+      0x0602, static_cast<uint16_t>(ErrorCode::InvalidValue));
+  TEST_ASSERT_EQUAL_UINT16(
+      0x0603, static_cast<uint16_t>(ErrorCode::StateConflict));
+  TEST_ASSERT_EQUAL_UINT16(
+      0x0604, static_cast<uint16_t>(ErrorCode::NotHomed));
+  TEST_ASSERT_EQUAL_UINT16(
+      0x0605, static_cast<uint16_t>(ErrorCode::NotCalibrated));
+  TEST_ASSERT_EQUAL_UINT16(
+      0x0606, static_cast<uint16_t>(ErrorCode::EmptyCommand));
+  TEST_ASSERT_EQUAL_STRING("UNKNOWN_COMMAND",
+                           errorCodeName(ErrorCode::UnknownCommand));
+  TEST_ASSERT_EQUAL_STRING("INVALID_VALUE",
+                           errorCodeName(ErrorCode::InvalidValue));
+  TEST_ASSERT_EQUAL_STRING("STATE_CONFLICT",
+                           errorCodeName(ErrorCode::StateConflict));
+  TEST_ASSERT_EQUAL_STRING("NOT_HOMED", errorCodeName(ErrorCode::NotHomed));
+  TEST_ASSERT_EQUAL_STRING("NOT_CALIBRATED",
+                           errorCodeName(ErrorCode::NotCalibrated));
+  TEST_ASSERT_EQUAL_STRING("EMPTY_COMMAND",
+                           errorCodeName(ErrorCode::EmptyCommand));
+}
+
+void test_api_error_hex_grammar(void) {
+  // The envelope carries `error.code` as int and logs may carry it as the
+  // FR-007 padded-hex grammar - both must render for the new block.
+  char buf[7];
+  TEST_ASSERT_EQUAL_STRING(
+      "0x0601",
+      errorCodeHex(static_cast<uint16_t>(ErrorCode::UnknownCommand), buf));
+  TEST_ASSERT_EQUAL_STRING(
+      "0x0606",
+      errorCodeHex(static_cast<uint16_t>(ErrorCode::EmptyCommand), buf));
+}
+
 void runErrorCodeTests() {
   RUN_TEST(test_overall_all_ok);
   RUN_TEST(test_overall_fail_dominates);
@@ -150,4 +191,6 @@ void runErrorCodeTests() {
   RUN_TEST(test_check_status_names);
   RUN_TEST(test_error_code_hex_pads_to_four_digits);
   RUN_TEST(test_error_code_hex_fixed_width);
+  RUN_TEST(test_api_error_block);
+  RUN_TEST(test_api_error_hex_grammar);
 }

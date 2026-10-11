@@ -29,6 +29,14 @@ enum class ErrorCode : uint16_t {
   EndstopInstantTrigger = 0x0502, // switch already closed at seek start
   EndstopStuckSwitch = 0x0503,    // debounced chatter, no clean edge
   EndstopPressedOrBroken = 0x0504, // WARN only (boot check): pressed or broken
+  // Serial API (0x06xx, M6): command-envelope failure codes (plan D8,
+  // FR-004). Machines parse error.code only; message is display text.
+  UnknownCommand = 0x0601,  // not in the accepted command set
+  InvalidValue = 0x0602,    // unparsable or out-of-range argument
+  StateConflict = 0x0603,   // busy/error-state/dump exclusivity
+  NotHomed = 0x0604,        // mm-accurate motion without a datum
+  NotCalibrated = 0x0605,   // force reading without a valid factor
+  EmptyCommand = 0x0606,    // blank line dispatch
 };
 
 // Check outcome (FR-003). Absence is not a fault (D3): NOT_CONNECTED and
@@ -105,6 +113,18 @@ inline const char* errorCodeName(ErrorCode code) {
       return "ENDSTOP_STUCK_SWITCH";
     case ErrorCode::EndstopPressedOrBroken:
       return "ENDSTOP_PRESSED_OR_BROKEN";
+    case ErrorCode::UnknownCommand:
+      return "UNKNOWN_COMMAND";
+    case ErrorCode::InvalidValue:
+      return "INVALID_VALUE";
+    case ErrorCode::StateConflict:
+      return "STATE_CONFLICT";
+    case ErrorCode::NotHomed:
+      return "NOT_HOMED";
+    case ErrorCode::NotCalibrated:
+      return "NOT_CALIBRATED";
+    case ErrorCode::EmptyCommand:
+      return "EMPTY_COMMAND";
     default:
       return "";
   }

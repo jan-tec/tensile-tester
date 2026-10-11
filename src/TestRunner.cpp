@@ -1,0 +1,507 @@
+// Test cycle runner implementation (M3 T011). See TestRunner.h for the
+// architecture note; hardware timing is target-tested (T014 matrix).
+#include "TestRunner.h"
+
+#include <FirmwareCore.h>
+
+void TestRunner::applyConfig(const TestConfig &config) {
+  config_ = clampTestConfig(config);
+  homing_.configure(config_.homingClearanceMm, kFinalSeekSpeedFraction,
+                    config_.homingTimeoutMs,
+                    SPINDLE_PITCH_MM_PER_REV / OUTPUT_STEPS_PER_REV);
+  detector_.configure(config_.armForceN, config_.dropPercent / 100.0f);
+}
+
+bool TestRunner::startHome(bool topOnly) {
+  if (active()) {
+    return false;
+  }
+  if (topOnly) {
+    homing_.startTopSeek();
+  } else {
+    homing_.start();
+  }
+  if (!homing_.motionWanted()) {
+    // FSM not startable (latched Fault); recovery is reset/reboot.
+    return false;
+  }
+  savedRpm_ = motion_.outputRpm();
+  topSeekSpanValid_ = false;
+  return true;
+}
+
+bool TestRunner::startTest() {
+  if (active() || cycle_.state() == TestState::Error) {
+    return false;
+  }
+  if (homing_.phase() == HomePhase::Fault) {
+    return false;  // latched homing fault; the model is in Error anyway
+  }
+  buffer_.clear();
+  nextDumpIndex_ = 0;
+  dumpInProgress_ = false;
+  breakDetected_ = false;
+  breakPositionMm_ = 0.0f;
+  savedRpm_ = motion_.outputRpm();
+  cycle_.dispatch(TestEvent::Start);  // -> Homing (or restart from an exit)
+  if (homed_) {
+    // #81: keep the existing datum - the operator may have inserted the
+    // sample after homing. FR-002(2-3): straight to the pull.
+    beginPull(millis());
+  } else {
+    // FR-002(1): in-cycle homing; its completion dispatches HomeDone.
+    homing_.start();
+  }
+  return true;
+}
+
+bool TestRunner::startHold(float setpointN, float durationMin) {
+  if (active() || cycle_.state() == TestState::Error) {
+    return false;
+  }
+  if (homing_.phase() == HomePhase::Fault) {
+    return false;
+  }
+  const float setpoint = effectiveHoldSetpointN(setpointN, config_);
+  if (setpoint == 0.0f || !std::isfinite(setpoint)) {
+    return false;  // 0 N is no command; the caller maps this to a reply
+  }
+  HoldController::Targets t{};
+  t.setpointN = setpoint;
+  t.durationMs = static_cast<uint32_t>(durationMin * 60000.0f + 0.5f);
+  t.tolerancePct = config_.holdTolerancePct;
+  t.clearanceMm = config_.holdClearanceMm;
+  buffer_.clear();
+  nextDumpIndex_ = 0;
+  dumpInProgress_ = false;
+  holdReportValid_ = false;
+  savedRpm_ = motion_.outputRpm();
+  hold_.start(t);
+  holdHomingDone_ = homed_;  // #81 analogue: keep a datum from this cycle
+  holdOriginSet_ = false;
+  lastSampleMs_ = 0;
+  // #220 follow-up: prime the glitch median with the live force - never
+  // median against a previous run's stale samples.
+  holdForceWindow_[0] = holdForceWindow_[1] = holdForceWindow_[2] =
+      loadcell_.rawForceNewton();
+  holdForceIndex_ = 0;
+  if (!homed_) {
+    // FR-007: the M3 homing FSM, standalone; its Done sets
+    // holdHomingDone_ (handleHomingTransition).
+    homing_.start();
+  }
+  return true;
+}
+
+bool TestRunner::abort() {
+  if (cycle_.active()) {
+    cycle_.dispatch(TestEvent::StopRequested);  // -> Aborted
+    // An in-cycle homing FSM must die with the cycle, or it would keep
+    // driving the motor after the abort (reset is safe from any phase:
+    // homed_ is tracked separately).
+    homing_.reset();
+    motion_.forceStop();
+    commandedDir_ = 0;
+    finishRun();
+    return true;
+  }
+  if (hold_.running()) {
+    // M4: drive the pure controller to its Aborted terminal
+    // SYNCHRONOUSLY (a second tick with the stop request) so the end
+    // reason + report are final before the reply goes out.
+    hold_.requestStop();
+    HoldController::Inputs in{};
+    in.homedDone = holdHomingDone_;
+    in.forceN = loadcell_.rawForceNewton();
+    in.positionMm = motion_.positionMm();
+    in.endstopBottom = endstops_.bottom();
+    in.endstopTop = endstops_.top();
+    in.deviceFault = false;
+    in.nowMs = static_cast<uint32_t>(millis());
+    const HoldController::Output out = hold_.tick(in);
+    finishHold(out);
+    motion_.forceStop();
+    commandedDir_ = 0;
+    finishRun();
+    return true;
+  }
+  if (homing_.motionWanted()) {
+    homing_.reset();  // standalone homing has no Aborted state; back to Idle
+    motion_.forceStop();
+    commandedDir_ = 0;
+    finishRun();
+    return true;
+  }
+  return false;
+}
+
+void TestRunner::tick(unsigned long nowMs, bool deviceInError) {
+  if (deviceInError) {
+    quiesceOnDeviceError();
+    return;
+  }
+
+  // jane: #165 - a commanded continuous move that is not actually running
+  // means the engine dropped the command: runForward()/runBackward() issued
+  // in the SAME loop tick as forceStop() loses to the not-yet-processed
+  // abort (bench-proven: 50 ms later the engine accepts). Every forceStop
+  // site zeroes commandedDir_, so this state is only the race - re-issue at
+  // the recorded intent (speed settings persist on the driver). Covers the
+  // homing drives AND beginPull's post-Done command.
+  if (commandedDir_ != 0 && !motion_.isRunning()) {
+    motion_.startContinuous(commandedDir_);
+  }
+
+  const HomePhase before = homing_.phase();
+
+  // FR-001 note: D26 hit during the back-off - the seek starts
+  // immediately from the current position (startFromTop() is only legal
+  // in BackOff; the report flag comes from the model).
+  if (before == HomePhase::BackOff && endstops_.top()) {
+    motion_.forceStop();
+    commandedDir_ = 0;
+    homing_.startFromTop();
+  }
+
+  homing_.tick(motion_.positionMm(), endstops_.bottom(), endstops_.top(),
+               static_cast<uint32_t>(nowMs));
+  if (homing_.phase() != before) {
+    handleHomingTransition();
+  }
+  if (homing_.motionWanted()) {
+    driveHomingMotion();
+  }
+
+  switch (cycle_.state()) {
+    case TestState::Pulling:
+      tickPull(nowMs);
+      break;
+    case TestState::Tail:
+      tickTail(nowMs);
+      break;
+    default:
+      break;
+  }
+
+  // M4 (T005): hold drive, AFTER the homing block (a completing homing
+  // sets holdHomingDone_ on this very tick) and independent of cycle_.
+  if (hold_.running()) {
+    tickHold(nowMs);
+  }
+}
+
+void TestRunner::tickHold(unsigned long nowMs) {
+  // The controller thinks in 10 Hz ticks (its rate limit is per tick);
+  // App::loop calls this every iteration, so gate on the sample cadence.
+  if (nowMs - lastSampleMs_ < kSampleIntervalMs) {
+    return;
+  }
+  lastSampleMs_ = nowMs;
+
+  // #220 follow-up: the bench cell produced single-sample spikes of
+  // -63 .. -1362 N while stationary (three in one session). The hold
+  // brain must not read a glitch as contact evidence or a collapse -
+  // median-of-3 over the raw reads rejects 1-2 sample transients while
+  // passing any real 10 Hz signal (contact mechanics are far slower).
+  // The M3 tensile path is deliberately UNTOUCHED (behavior-preserving).
+  holdForceWindow_[holdForceIndex_ % 3] = loadcell_.rawForceNewton();
+  holdForceIndex_++;
+  const float a = holdForceWindow_[0];
+  const float b = holdForceWindow_[1];
+  const float c = holdForceWindow_[2];
+  const float median = a < b ? (b < c ? b : (a < c ? c : a))
+                             : (a < c ? a : (b < c ? c : b));
+
+  HoldController::Inputs in{};
+  in.homedDone = holdHomingDone_;
+  in.forceN = median;
+  in.positionMm = motion_.positionMm();
+  in.endstopBottom = endstops_.bottom();
+  in.endstopTop = endstops_.top();
+  in.deviceFault = false;  // device errors quiesce before we get here
+  in.nowMs = static_cast<uint32_t>(nowMs);
+  const HoldController::Output out = hold_.tick(in);
+  applyHoldOutput(out);
+}
+
+void TestRunner::applyHoldOutput(const HoldController::Output &out) {
+  if (out.sample) {
+    if (!holdOriginSet_) {
+      // CSV displacement 0 = approach start; the contact point and the
+      // creep travel read as growth from there (US2 plotting).
+      holdOriginMm_ = motion_.positionMm();
+      holdOriginSet_ = true;
+    }
+    // jane: T004 lands the keep-last ring; until then a full buffer
+    // drops samples silently (8192 = ~13.6 min covers the SC-001 target).
+    buffer_.push({motion_.positionMm() - holdOriginMm_,
+                  loadcell_.rawForceNewton()});
+  }
+  switch (out.phase) {
+    case HoldController::Phase::Approach:
+      if (out.seekDir != 0) {
+        driveHoldSeek(out.seekDir);
+      }
+      break;
+    case HoldController::Phase::Holding:
+      if (out.holdStartTick) {
+        // Contact: kill the seek instantly (jolt-free loop entry) and
+        // set the correction speed to the machine cap (the rate limit
+        // IS the cap per tick, so each 0.05 mm move finishes in-tick).
+        motion_.forceStop();
+        commandedDir_ = 0;
+        const float capRpm = feedMmPerMinToRpm(MAX_MOVE_MM_PER_MIN);
+        motion_.setOutputRpm(capRpm);
+        commandedRpm_ = capRpm;
+      } else if (out.correctionMm != 0.0f) {
+        motion_.startMoveToSteps(motion_.steps() +
+                                 spindleMmToSteps(out.correctionMm));
+      }
+      break;
+    default:
+      if (out.phase != HoldController::Phase::Homing &&
+          out.phase != HoldController::Phase::Idle) {
+        finishHold(out);  // terminal: Done | Limit | Lost | Aborted
+      }
+      break;
+  }
+}
+
+void TestRunner::driveHoldSeek(int seekDir) {
+  // FR-002: the approach (and compression transit) runs at the test
+  // speed - same tracking rules as driveHomingMotion.
+  const float rpm = feedMmPerMinToRpm(config_.testSpeedMmPerMin);
+  if (seekDir == commandedDir_ && rpm == commandedRpm_) {
+    return;
+  }
+  motion_.setOutputRpm(rpm);
+  motion_.startContinuous(seekDir);
+  commandedDir_ = seekDir;
+  commandedRpm_ = rpm;
+}
+
+void TestRunner::finishHold(const HoldController::Output &out) {
+  motion_.forceStop();  // Limit/Lost must not linger; Time ends parked
+  commandedDir_ = 0;
+  holdEnd_ = out.end;
+  holdReport_ = hold_.report();
+  holdReportValid_ = true;
+  finishRun();
+}
+
+void TestRunner::handleHomingTransition() {
+  switch (homing_.phase()) {
+    case HomePhase::FinalSeek:
+      // Stage-1 trigger: stop the downward seek instantly (the switch
+      // face is a hard stop); the model's internal back-off takes over.
+      motion_.forceStop();
+      commandedDir_ = 0;
+      break;
+
+    case HomePhase::BackOffDown:
+      // `home top` trigger (FR-008): hard stop at D26, record the span
+      // (only meaningful with a known datum), then back down.
+      motion_.forceStop();
+      commandedDir_ = 0;
+      if (homed_) {
+        topSeekSpanValid_ = true;
+        topSeekSpanMm_ = motion_.positionMm();
+      }
+      break;
+
+    case HomePhase::Done:
+      motion_.forceStop();
+      commandedDir_ = 0;
+      if (homing_.datumSetThisRun()) {
+        // FR-006 / plan section 4: the datum is simply zero at the
+        // stage-2 trigger - no offset arithmetic.
+        motion_.zero();
+        homed_ = true;
+      }
+      if (hold_.running()) {
+        // M4: a hold's in-cycle homing completed - the controller's
+        // Approach starts on its next 10 Hz tick.
+        holdHomingDone_ = true;
+      }
+      finishRun();
+      if (cycle_.state() == TestState::Homing) {
+        beginPull(millis());
+      }
+      break;
+
+    case HomePhase::Fault:
+      motion_.forceStop();
+      commandedDir_ = 0;
+      finishRun();
+      reportHomingFault();
+      if (cycle_.state() == TestState::Homing) {
+        cycle_.dispatch(TestEvent::HomeFault);  // -> cycle Error
+      }
+      break;
+
+    default:
+      break;  // BackOff -> SeekDown: only a direction change
+  }
+}
+
+void TestRunner::driveHomingMotion() {
+  const int dir = homing_.direction();
+  if (dir == 0) {
+    return;
+  }
+  const float rpm = seekRpm() * homing_.speedFraction();
+  if (dir == commandedDir_ && rpm == commandedRpm_) {
+    return;
+  }
+  motion_.setOutputRpm(rpm);
+  motion_.startContinuous(dir);
+  commandedDir_ = dir;
+  commandedRpm_ = rpm;
+}
+
+void TestRunner::beginPull(unsigned long nowMs) {
+  cycle_.dispatch(TestEvent::HomeDone);  // Homing -> Pulling
+  detector_.reset();
+  pullStartMm_ = motion_.positionMm();
+  breakDetected_ = false;
+  breakPositionMm_ = 0.0f;
+  runPeakForceN_ = 0.0f;
+  runPeakIndex_ = 0;
+  // CSV index 0 is the pull start (displacement 0, FR-004): force the
+  // first sample on this very tick.
+  lastSampleMs_ = nowMs - kSampleIntervalMs;
+  tailStartMs_ = nowMs;
+  const float rpm = feedMmPerMinToRpm(config_.testSpeedMmPerMin);
+  motion_.setOutputRpm(rpm);
+  motion_.startContinuous(+1);
+  commandedDir_ = +1;
+  commandedRpm_ = rpm;
+}
+
+void TestRunner::tickPull(unsigned long nowMs) {
+  // FR-002: D26 during pull = hard backstop; a guarded stop (Limit),
+  // never a fault, no machine code (D10).
+  if (endstops_.top()) {
+    motion_.forceStop();
+    commandedDir_ = 0;
+    cycle_.dispatch(TestEvent::TopLimitHit);
+    finishRun();
+    return;
+  }
+  if (nowMs - lastSampleMs_ < kSampleIntervalMs) {
+    return;
+  }
+  lastSampleMs_ = nowMs;
+
+  const float forceN = loadcell_.rawForceNewton();
+  const TestSample sample{motion_.positionMm() - pullStartMm_, forceN};
+  if (!buffer_.push(sample)) {
+    // FR-004: buffer full - pull stops safely (decel ramp is fine here,
+    // there is no mechanical event), truncation is flagged by the buffer.
+    cycle_.dispatch(TestEvent::BufferFull);
+    motion_.stop();
+    commandedDir_ = 0;
+    tailStartMs_ = nowMs;
+    return;
+  }
+  // FR-003: the detector sees the SAME raw sample that was recorded -
+  // the break sample (dropped force) stays in the curve.
+  if (detector_.sample(forceN) == BreakDetector::Verdict::Broken) {
+    cycle_.dispatch(TestEvent::BreakDetected);
+    // FR-002(4): forceStop semantics (instant, no ramp) - the TC-003
+    // over-travel bound depends on it.
+    motion_.forceStop();
+    commandedDir_ = 0;
+    breakDetected_ = true;
+    breakPositionMm_ = sample.positionMm;
+    tailStartMs_ = nowMs;
+  }
+}
+
+void TestRunner::tickTail(unsigned long nowMs) {
+  // FR-002(5) / FR-004: sampling continues through the fixed tail
+  // window (carriage stationary after the break stop). A full buffer
+  // keeps its truncated flag; push results are irrelevant here.
+  if (nowMs - lastSampleMs_ >= kSampleIntervalMs) {
+    lastSampleMs_ = nowMs;
+    buffer_.push({motion_.positionMm() - pullStartMm_,
+                  loadcell_.rawForceNewton()});
+  }
+  if (nowMs - tailStartMs_ >= kTailMs) {
+    cycle_.dispatch(TestEvent::TailComplete);  // -> Done
+    finishRun();
+  }
+}
+
+void TestRunner::quiesceOnDeviceError() {
+  // US3: the DeviceModel entered Error (e.g. runtime power FAIL; the
+  // driver is disabled by App's Error-transition block). The cycle
+  // records Error and the data stays retrievable (A3).
+  if (cycle_.active()) {
+    cycle_.dispatch(TestEvent::PowerFail);  // -> Error
+    homing_.reset();  // an in-cycle homing dies with the cycle
+    motion_.forceStop();
+    commandedDir_ = 0;
+    finishRun();
+  } else if (hold_.running()) {
+    // M4: same synchronous pattern as abort() - the pure controller
+    // latches Aborted(Fault) and the report survives.
+    HoldController::Inputs in{};
+    in.homedDone = holdHomingDone_;
+    in.forceN = loadcell_.rawForceNewton();
+    in.positionMm = motion_.positionMm();
+    in.endstopBottom = endstops_.bottom();
+    in.endstopTop = endstops_.top();
+    in.deviceFault = true;
+    in.nowMs = static_cast<uint32_t>(millis());
+    const HoldController::Output out = hold_.tick(in);
+    finishHold(out);
+    motion_.forceStop();
+    commandedDir_ = 0;
+    finishRun();
+  } else if (homing_.motionWanted()) {
+    homing_.reset();
+    motion_.forceStop();
+    commandedDir_ = 0;
+    finishRun();
+  }
+}
+
+void TestRunner::reportHomingFault() {
+  // Plan section 5 fault -> code mapping; the DeviceModel effect (Error,
+  // driver off) is the normal M1 FR-009 path via Diagnostics.
+  uint16_t code = 0;
+  switch (homing_.fault()) {
+    case HomeFault::SeekTimeout:
+      code = static_cast<uint16_t>(ErrorCode::EndstopSeekTimeout);
+      break;
+    case HomeFault::InstantTrigger:
+      code = static_cast<uint16_t>(ErrorCode::EndstopInstantTrigger);
+      break;
+    case HomeFault::StuckSwitch:
+      code = static_cast<uint16_t>(ErrorCode::EndstopStuckSwitch);
+      break;
+    case HomeFault::None:
+      return;
+  }
+  diagnostics_.reportRuntimeFault(code);
+}
+
+void TestRunner::finishRun() {
+  // Capture the detector's peak into the run record BEFORE anything can
+  // reset the detector: the record must outlive post-run config writes
+  // (applyConfig -> detector_.configure -> reset). Homing-only runs keep
+  // 0 - the detector is armed during pulls only.
+  runPeakForceN_ = detector_.peakForceN();
+  runPeakIndex_ = detector_.peakIndex();
+  // Restore the operator's speed setting (jog/move `rpm`); the driver
+  // stays enabled - a finished run is not a fault.
+  motion_.setOutputRpm(savedRpm_);
+  commandedDir_ = 0;
+  commandedRpm_ = savedRpm_;
+}
+
+float TestRunner::seekRpm() const {
+  // FR-005: seek == 0 means "follow the test speed".
+  return feedMmPerMinToRpm(homingSeekSpeed(config_));
+}

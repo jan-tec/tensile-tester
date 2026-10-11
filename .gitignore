@@ -3,3 +3,9 @@
 .vscode/c_cpp_properties.json
 .vscode/launch.json
 .vscode/ipch
+.playwright-cli/
+include/git_sha.h
+__pycache__/
+.DS_Store
+.venv/
+*.kicad_prl

@@ -9,3 +9,11 @@ in the development cycle.
 
 More information about PlatformIO Unit Testing:
 - https://docs.platformio.org/en/latest/advanced/unit-testing/index.html
+
+## House Unity notes
+
+- Unity (as bundled with PlatformIO) has **no `TEST_ASSERT_NOT_EQUAL_STRING`**
+  - use `TEST_ASSERT_TRUE(strcmp(a, b) != 0)` instead (found 2026-10-11, M6-T004).
+- Exact-string pins are the house style for wire formats and message
+  tables (`TEST_ASSERT_EQUAL_STRING`) - see `test_api_response.cpp` for
+  the JSON envelope pins.

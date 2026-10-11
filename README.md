@@ -1,5 +1,7 @@
 # Tensile Tester
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/jan-tec/tensile-tester)
+
 ESP32 firmware for a tensile test machine (Zugversuchsmaschine): a
 gear-stepper spindle with load-cell force measurement, controlled over a
 WiFi web UI or the serial CLI. The UI is English-first with a German locale

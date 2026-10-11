@@ -55,11 +55,12 @@ class Motion : public IMotion {
   void applySettings();
 
   // Runtime config (legacy main.cpp values). begin() derives the initial
-  // rpm from kDefaultFeedMmPerMin, so outputRpm_ starts at 5.0 and becomes
-  // 6.0 in begin().
+  // rpm from kDefaultFeedMmPerMin (the 30 mm/min travel default,
+  // bench-established 2026-10-11), so outputRpm_ starts at 15.0 and
+  // becomes feedMmPerMinToRpm(30) = 15.0 in begin() (travel moves).
   static constexpr float kDefaultOutputRpm = 5.0f;
   static constexpr float kDefaultAccelRpmPerS = 20.0f;
-  static constexpr float kDefaultFeedMmPerMin = 12.0f;
+  static constexpr float kDefaultFeedMmPerMin = 30.0f;
 
   static constexpr uint8_t kDirPin = 19;
   static constexpr uint8_t kStepPin = 18;

@@ -65,7 +65,7 @@ void test_clamp_feed_below_min(void) {
 
 void test_clamp_feed_above_max(void) {
   TEST_ASSERT_FLOAT_WITHIN(0.0f, MAX_MOVE_MM_PER_MIN,
-                           clampFeedMmPerMin(60.01f));
+                           clampFeedMmPerMin(30.01f));
   TEST_ASSERT_FLOAT_WITHIN(0.0f, MAX_MOVE_MM_PER_MIN,
                            clampFeedMmPerMin(1000.0f));
 }

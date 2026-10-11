@@ -17,9 +17,11 @@ constexpr float OUTPUT_STEPS_PER_REV =
     MOTOR_FULL_STEPS_PER_REV * GEAR_RATIO * MICROSTEPS;
 constexpr float SPINDLE_PITCH_MM_PER_REV = 2.0f;
 
-// Allowed feed range (mm/min), enforced by clampFeedMmPerMin.
+// Allowed feed range (mm/min), enforced by clampFeedMmPerMin. The 30
+// mm/min machine cap is bench-established (2026-10-11, operator): the
+// gantry rattles above it; 60 is mechanically unusable on this machine.
 constexpr float MIN_MOVE_MM_PER_MIN = 0.5f;
-constexpr float MAX_MOVE_MM_PER_MIN = 60.0f;
+constexpr float MAX_MOVE_MM_PER_MIN = 30.0f;
 
 // rpm/acceleration (per second) at the spindle -> steps/s (steps/s^2 uses
 // the same helper: per-rpm scaling is identical).

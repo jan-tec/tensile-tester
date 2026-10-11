@@ -132,7 +132,7 @@ As an operator, I am protected against endstop faults and runtime power loss.
 - **TC-002:** break detector is a pure function/class (feed samples in,
   get armed/broken verdict out): pins slack immunity (no trigger below arm
   threshold), peak tracking, and the drop criterion - host-tested RED-first.
-- **TC-003:** break over-travel bound: at max test speed (60 mm/min) and
+- **TC-003:** break over-travel bound: at max test speed (30 mm/min) and
   worst-case detection latency (2 samples x 100 ms + LP-filter-independence
   argument documented), documented maximum post-break travel; the spec owner
   accepts the bound for sample safety.

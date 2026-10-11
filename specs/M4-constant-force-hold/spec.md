@@ -121,8 +121,8 @@ yields, breaks, or slips during the hold.
   |setpoint| + overshoot bound (default +10%, host-tested on the pure
   model, bench-verified).
 - **TC-003:** correction rate limit: max carriage travel per 10 Hz tick
-  (default 0.1 mm/tick = 60 mm/min ceiling) is a pure, host-tested clamp -
-  it is what makes the 100 ms force lag stable.
+  (default 0.05 mm/tick = 30 mm/min ceiling, the machine travel cap) is a
+  pure, host-tested clamp - it is what makes the 100 ms force lag stable.
 - **TC-004:** ring keep-last policy: pure buffer host test - after N > 8192
   pushes, the buffer holds the newest 8192 samples and the overwrite count
   equals N - 8192.

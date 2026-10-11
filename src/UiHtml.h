@@ -338,7 +338,7 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
         <form data-prefix="feed" class="speed-form">
           <label for="feedInput" data-i18n="inFeed">Feed (mm/min)</label>
           <div class="speed-inline">
-            <input id="feedInput" name="value" type="number" step="0.1" min="0.5" max="60" data-i18n-ph="phFeed" placeholder="Feed mm/min">
+            <input id="feedInput" name="value" type="number" step="0.1" min="0.5" max="30" data-i18n-ph="phFeed" placeholder="Feed mm/min">
             <button type="submit" data-i18n="btnSet">Set</button>
           </div>
         </form>
@@ -360,7 +360,7 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
         <h2 data-i18n="headTestCfg">Test settings</h2>
         <form data-prefix="testspeed">
           <label for="testspeedInput" data-i18n="inTestSpeed">Test speed (mm/min)</label>
-          <input id="testspeedInput" name="value" type="number" step="0.1" min="0.5" max="60" data-i18n-ph="phTestSpeed" placeholder="Test speed in mm/min">
+          <input id="testspeedInput" name="value" type="number" step="0.1" min="0.5" max="30" data-i18n-ph="phTestSpeed" placeholder="Test speed in mm/min">
           <button type="submit" data-i18n="btnSet">Set</button>
         </form>
         <form data-prefix="testarm">

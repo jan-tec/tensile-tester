@@ -62,7 +62,12 @@ void Motion::zero() {
 }
 
 void Motion::setOutputRpm(float rpm) {
-  outputRpm_ = rpm;
+  // Machine travel cap (2026-10-11, operator): the rpm command must not
+  // bypass the feed envelope - clamp to feedMmPerMinToRpm(MAX_MOVE_MM_PER_MIN)
+  // so every speed command shares one physical limit. The command reply
+  // reports the EFFECTIVE value (motion_.outputRpm()), like `feed` does.
+  const float maxRpm = feedMmPerMinToRpm(MAX_MOVE_MM_PER_MIN);
+  outputRpm_ = rpm > maxRpm ? maxRpm : rpm;
   applySettings();
 }
 

@@ -289,7 +289,7 @@ bench matrix.
 
 | Risk | Mitigation |
 |------|-----------|
-| Break detected too late -> over-travel damages fixture/sample | TC-003 computes the bound (60 mm/min, 2-sample latency = 0.2 mm + `forceStop()` no-decel) and the spec owner accepts it explicitly in T013; `testarm`/`testdrop` tunable per sample |
+| Break detected too late -> over-travel damages fixture/sample | TC-003 computes the bound (30 mm/min machine cap, 2-sample latency = 0.1 mm + `forceStop()` no-decel) and the spec owner accepts it explicitly in T013; `testarm`/`testdrop` tunable per sample |
 | `LoadCell` is polled from the loop task while the Web server and CSV dump run -> sample interval jitter | Sampling rides the existing 10 Hz `poll()`; the runner stamps the tick, it does not block on writes (D8). Jitter is documented, not corrected - the CSV index is nominal 10 Hz per FR-004 |
 | 64 KB BSS + WiFi/WebServer memory pressure | TC-004/B8 measures free heap at boot; if < ~100 KB, reduce `CAPACITY` (the constant is the only change point) |
 | Endstop bounce counted as a second trigger | D4 debounce + the FR-001 clearance guard; TC-007 pins both |

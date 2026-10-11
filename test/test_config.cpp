@@ -30,7 +30,7 @@ void test_clamp_speed(void) {
   c.testSpeedMmPerMin = -5.0f;
   TEST_ASSERT_FLOAT_WITHIN(1e-6f, 0.5f, clampTestConfig(c).testSpeedMmPerMin);
   c.testSpeedMmPerMin = 500.0f;
-  TEST_ASSERT_FLOAT_WITHIN(1e-6f, 60.0f, clampTestConfig(c).testSpeedMmPerMin);
+  TEST_ASSERT_FLOAT_WITHIN(1e-6f, 30.0f, clampTestConfig(c).testSpeedMmPerMin);
 }
 
 void test_clamp_arm_open_interval(void) {
@@ -66,7 +66,7 @@ void test_seek_zero_follows_test_speed(void) {
   TEST_ASSERT_FLOAT_WITHIN(1e-6f, 30.0f, homingSeekSpeed(c));
   // a nonzero seek speed is clamped to the feed range
   c.homingSeekMmPerMin = 500.0f;
-  TEST_ASSERT_FLOAT_WITHIN(1e-6f, 60.0f, clampTestConfig(c).homingSeekMmPerMin);
+  TEST_ASSERT_FLOAT_WITHIN(1e-6f, 30.0f, clampTestConfig(c).homingSeekMmPerMin);
 }
 
 void test_clamp_timeout(void) {

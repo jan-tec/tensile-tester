@@ -13,7 +13,8 @@
 // downstream (homing model, runner, CSV) may trust the config completely.
 //
 // Rules (pinned by test/test_config.cpp, plan "Config model"):
-//   - speed     -> [0.5, 60] mm/min (the shared feed range)
+//   - speed     -> [0.5, 30] mm/min (the shared feed range; 30 = the
+//                  bench-established machine travel cap, 2026-10-11)
 //   - arm       -> (0, 4903] N; the interval is OPEN at zero (0 N cannot
 //                  arm the break detector) so 0/negative fall back to the
 //                  default instead of clamping to an unusable boundary
@@ -54,7 +55,7 @@ inline float clampField(float value, float lo, float hi, float fallback) {
 inline TestConfig clampTestConfig(TestConfig c) {
   const TestConfig d = defaultTestConfig();
   c.testSpeedMmPerMin =
-      clampField(c.testSpeedMmPerMin, 0.5f, 60.0f, d.testSpeedMmPerMin);
+      clampField(c.testSpeedMmPerMin, 0.5f, 30.0f, d.testSpeedMmPerMin);
   // (0, 4903] is open at zero: anything not strictly positive (incl. NaN)
   // falls back to the default - clamping 0 to a hair above it would be an
   // unusable arm force.
@@ -69,7 +70,7 @@ inline TestConfig clampTestConfig(TestConfig c) {
   if (!std::isfinite(c.homingSeekMmPerMin)) {
     c.homingSeekMmPerMin = 0.0f;
   } else if (c.homingSeekMmPerMin != 0.0f) {
-    c.homingSeekMmPerMin = std::max(0.5f, std::min(60.0f, c.homingSeekMmPerMin));
+    c.homingSeekMmPerMin = std::max(0.5f, std::min(30.0f, c.homingSeekMmPerMin));
   }
   c.homingTimeoutMs = std::max<uint32_t>(1000, std::min<uint32_t>(
                                                    300000, c.homingTimeoutMs));

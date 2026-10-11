@@ -1,10 +1,16 @@
 # Feature Specification: M7 - Web UI Redesign
 
-Status: Draft | Rigor: Spec-First | Created: 2026-10-07 | Updated:
+Status: In progress | Rigor: Spec-First | Created: 2026-10-07 | Updated:
 2026-10-11 | Priority: Low (owner re-affirmed 2026-10-11: tear workflow
 first-class, #167)
 (owner) | Depends on: M3, M4, M5, M6 (cycles + command grammar; M3 command
 surface bench-proven 2026-10-11, #156)
+
+**Implementation status 2026-10-11 (#172)**: US3 (tear workflow, FR-005..008)
+and the US2 visual language are SHIPPED and bench-verified end-to-end
+(SC-002/SC-003 evidence on #167). Remaining for Phase C: FR-003 full
+calibration wizard (M5 states), M4 constant-force-hold controls, M6
+envelope unification; plan-level decisions recorded in #172.
 
 **Goal:** Redesign the on-device web UI into a clean, modern, colour-free
 control surface that exposes every machine function as a button or control:
@@ -101,12 +107,16 @@ softAP without a serial terminal.
 
 ## Assumptions & Handoffs
 
-- **A1:** the Qitech reference screenshot in #83 was not retrievable at
-  spec time (404) - the owner re-attaches or confirms the style before
-  `/spec.plan` (blocked).
+- **A1:** RESOLVED 2026-10-11 (#167 taste probe, #169): the owner locked
+  monochrome + exactly one functional danger accent (red) - the style is
+  decided, no screenshot re-attachment needed.
 - **A2:** layout/details (grouping order, panel density) are plan-level;
-  this spec pins the functional surface and the visual constraints.
-- **Next Step:** unblock A1, then `/spec.plan` after M3-M6 ship.
+  this spec pins the functional surface and the visual constraints. The
+  US3-slice layout decisions (transport, filename, Stop placement, radius
+  scale) are recorded in #172's description.
+- **Next Step:** `/spec.plan` for the Phase C remainder (FR-003 calibration
+  wizard after M5, M4 controls, M6 envelope) - the US3 slice shipped ahead of
+  that order by owner request (#172).
 
 ## Success Criteria
 

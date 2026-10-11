@@ -101,6 +101,13 @@ String WebUi::statusJson() {
   json += localeName(textLocale());
   json += "\"";
 
+  // #95: monotonic boot clock - a client that sees it DECREASE between
+  // polls knows the device rebooted under it (driver/position state reset
+  // with no other trace in the UI). Wraps after 49.7 days - irrelevant
+  // here, and the client only compares for "smaller than before".
+  json += ",\"uptimeMs\":";
+  json += String(millis());
+
   // FR-008: device state + the boot selftest object (overall + checks[]).
   const DeviceModel &model = diagnostics_.model();
   json += ",\"state\":\"";

@@ -270,6 +270,20 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
       margin-top: 16px;
       font-weight: 700;
     }
+    /* #95: stale-contact banner - shown only while body.stale is set;
+       pill values dim (never blanked - the numeric text stays readable). */
+    #staleBanner {
+      display: none;
+      border: 1px dashed var(--muted);
+      padding: 6px 10px;
+      margin: 8px 0 0 0;
+    }
+    body.stale #staleBanner {
+      display: block;
+    }
+    body.stale .pill .value {
+      opacity: 0.35;
+    }
     @media (max-width: 640px) {
       .status, .btnrow { grid-template-columns: 1fr; }
     }
@@ -429,6 +443,7 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
 
     </div>
 
+    <div id="staleBanner" role="status"></div>
     <div id="message" aria-live="polite"></div>
   </div>
 
@@ -518,6 +533,8 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
         "calNone": "No valid calibration stored yet.",
         "errNoConn": "No connection to the ESP32.",
         "errNoStatus": "Status could not be loaded.",
+        "staleContact": "No contact for {n} s - shown values may be outdated.",
+        "deviceRebooted": "Device was restarted - check position and driver state.",
         "errValue": "Please enter a value.",
         "errWeight": "Enter the known weight in grams first.",
         "errCycleActive": "A test is running - download after it finishes."
@@ -586,6 +603,8 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
         "calNone": "Noch keine gültige Kalibrierung gespeichert.",
         "errNoConn": "Keine Verbindung zum ESP32.",
         "errNoStatus": "Status kann nicht geladen werden.",
+        "staleContact": "Kein Kontakt seit {n} s - angezeigte Werte können veraltet sein.",
+        "deviceRebooted": "Gerät wurde neu gestartet - Position und Treiberzustand prüfen.",
         "errValue": "Bitte einen Wert eingeben.",
         "errWeight": "Bitte zuerst das bekannte Gewicht in Gramm eingeben.",
         "errCycleActive": "Ein Testlauf ist aktiv - Download danach."
@@ -633,6 +652,28 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
     // not leave "Status kann nicht geladen werden." on screen next to values
     // that keep updating.
     let statusUnavailable = false;
+    // #95: failure backoff ladder (ms) and stale-contact tracking. The
+    // fixed 100 ms interval became a self-rescheduling timeout: while
+    // unreachable the request rate drops to <= 1/s (the WebServer serves
+    // one client at a time - hammering it during degradation is the
+    // worst load pattern). Reset to the first rung on every success.
+    const POLL_STEPS_MS = [100, 250, 500, 1000];
+    let pollStep = 0;
+    let lastContactMs = Date.now();
+    let lastUptimeMs = -1;
+    const staleBanner = document.getElementById("staleBanner");
+
+    function markStale() {
+      const ageSeconds = Math.round((Date.now() - lastContactMs) / 1000);
+      if (ageSeconds >= 1) {
+        document.body.classList.add("stale");
+        staleBanner.textContent = t("staleContact").replace("{n}", ageSeconds);
+      }
+    }
+
+    function clearStale() {
+      document.body.classList.remove("stale");
+    }
 
     function resizeCanvas() {
       const ratio = window.devicePixelRatio || 1;
@@ -957,6 +998,18 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
           statusUnavailable = false;
           messageEl.textContent = "";
         }
+        // #95: contact age + reboot watch.
+        pollStep = 0;
+        lastContactMs = Date.now();
+        clearStale();
+        if (typeof data.uptimeMs === "number") {
+          if (lastUptimeMs >= 0 && data.uptimeMs < lastUptimeMs) {
+            // The boot clock went backwards - the device rebooted under
+            // the page (driver/position state reset with it).
+            setMessage(t("deviceRebooted"), true);
+          }
+          lastUptimeMs = data.uptimeMs;
+        }
 
         if (typeof data.forceNewton === "number") {
           forceHistory.push(data.forceNewton);
@@ -967,6 +1020,8 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
         drawPlot();
       } catch (error) {
         statusUnavailable = true;
+        pollStep = Math.min(pollStep + 1, POLL_STEPS_MS.length - 1);
+        markStale();
         setMessage(t("errNoStatus"), true);
       }
     }
@@ -1087,7 +1142,13 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
     resizeCanvas();
     applyLocale(locale);
     refreshStatus();
-    setInterval(refreshStatus, 100);
+    // #95: self-rescheduling poll with failure backoff (100 ms -> 1 s cap,
+    // reset on success) instead of a fixed 100 ms interval.
+    (function pollLoop() {
+      refreshStatus().finally(() => {
+        setTimeout(pollLoop, POLL_STEPS_MS[pollStep]);
+      });
+    })();
   </script>
 </body>
 </html>

@@ -470,6 +470,25 @@ void test_tear_config_forms_present(void) {
                            "testdrop form missing");
 }
 
+// #95: stale/offline handling + poll backoff contract on the served page.
+void test_ui_status_poll_uses_backoff_not_fixed_interval(void) {
+  // The fixed 100 ms interval is gone; a backoff ladder reschedules itself.
+  TEST_ASSERT_EQUAL_UINT32(0, countInHtml("setInterval(refreshStatus"));
+  TEST_ASSERT_TRUE(inHtml("POLL_STEPS_MS"));
+}
+
+void test_ui_has_stale_banner_hooks(void) {
+  TEST_ASSERT_TRUE(inHtml("id=\"staleBanner\""));
+  TEST_ASSERT_TRUE(inHtml("markStale"));
+  TEST_ASSERT_TRUE(inHtml("clearStale"));
+  TEST_ASSERT_TRUE(inHtml("staleContact"));
+}
+
+void test_ui_detects_device_reboot_via_uptime(void) {
+  TEST_ASSERT_TRUE(inHtml("uptimeMs"));
+  TEST_ASSERT_TRUE(inHtml("deviceRebooted"));
+}
+
 void runUiHtmlTests(void) {
   RUN_TEST(test_index_html_has_content);
   RUN_TEST(test_index_html_declares_language_and_charset);
@@ -479,6 +498,9 @@ void runUiHtmlTests(void) {
   RUN_TEST(test_message_area_is_a_live_region);
   RUN_TEST(test_jog_supports_keyboard_activation);
   RUN_TEST(test_static_markup_is_english);
+  RUN_TEST(test_ui_status_poll_uses_backoff_not_fixed_interval);
+  RUN_TEST(test_ui_has_stale_banner_hooks);
+  RUN_TEST(test_ui_detects_device_reboot_via_uptime);
   RUN_TEST(test_i18n_dictionary_has_both_locales);
   RUN_TEST(test_i18n_dictionary_is_complete);
   RUN_TEST(test_all_data_cmd_values_are_known_commands);

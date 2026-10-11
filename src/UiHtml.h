@@ -157,6 +157,10 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 10px;
+      margin-top: 14px;  /* clear spacing to the pills/summary above */
+    }
+    .btnrow3 {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
     }
     .jog {
       display: grid;
@@ -321,7 +325,7 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
 <body>
   <div class="wrap">
     <div class="topbar">
-      <h1 data-i18n="h1">JanTec Tensile Test Control</h1>
+      <h1 data-i18n="h1">JanTec ATLAS</h1>
       <div class="langs" role="group" aria-label="Language">
         <button type="button" data-lang="en" aria-pressed="true">EN</button>
         <button type="button" data-lang="de" aria-pressed="false">DE</button>
@@ -338,9 +342,10 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
           <div class="pill"><span class="label" data-i18n="lblDatum">Datum</span><span class="value" id="datumState">-</span></div>
         </div>
         <p class="note" id="samplePrompt" hidden data-i18n="samplePrompt">Datum reached. Clamp the sample, then start the test.</p>
-        <div class="btnrow">
+        <div class="btnrow btnrow3">
           <button data-cmd="home" type="button" data-i18n="btnHome">Home</button>
           <button type="button" data-cmd="test" data-i18n="btnStartTest">Start test</button>
+          <a class="btn" id="csvDownload" href="/api/data" download="tensile-run.csv" data-i18n="csvDownload">Download CSV</a>
         </div>
         <div class="status" id="runSummary">
           <div class="pill"><span class="label" data-i18n="lblPeak">Peak force</span><span class="value" id="runPeak">-</span></div>
@@ -348,7 +353,6 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
           <div class="pill"><span class="label" data-i18n="lblSamples">Samples</span><span class="value" id="runSamples">-</span></div>
           <div class="pill"><span class="label" data-i18n="lblTrunc">Truncated</span><span class="value" id="runTrunc">-</span></div>
         </div>
-        <p class="note"><a class="btn" id="csvDownload" href="/api/data" download="tensile-run.csv" data-i18n="csvDownload">Download CSV</a></p>
       </section>
 
       <section class="card plot-card">
@@ -499,7 +503,7 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
     const I18N = {
       en: {
         "title": "Test machine",
-        "h1": "JanTec Tensile Test Control",
+        "h1": "JanTec ATLAS",
         "headTest": "Tensile test",
         "lblCycle": "Cycle", "lblDatum": "Datum",
         "samplePrompt": "Datum reached. Clamp the sample, then start the test.",
@@ -569,7 +573,7 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
       },
       de: {
         "title": "Testmaschine",
-        "h1": "JanTec Zugversuch Steuerung",
+        "h1": "JanTec ATLAS",
         "headTest": "Zugversuch",
         "lblCycle": "Zyklus", "lblDatum": "Nullpunkt",
         "samplePrompt": "Nullpunkt erreicht. Probe einspannen, dann Test starten.",

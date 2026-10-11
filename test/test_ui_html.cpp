@@ -518,6 +518,25 @@ void test_ui_test_and_runcurve_share_a_row(void) {
   TEST_ASSERT_TRUE(inHtml(".row2 .plot-card"));
 }
 
+// Operator request 2026-10-11: brand title is "JanTec ATLAS" in both
+// locales (was "Zugversuch Steuerung" / "Tensile Test Control").
+void test_ui_h1_is_jantec_atlas(void) {
+  // 3 = EN dict + DE dict + the static markup default (ships English).
+  TEST_ASSERT_EQUAL_UINT32(3, countInHtml("JanTec ATLAS"));
+  TEST_ASSERT_EQUAL_UINT32(0, countInHtml("Zugversuch Steuerung"));
+  TEST_ASSERT_EQUAL_UINT32(0, countInHtml("Tensile Test Control"));
+}
+
+// Home | Start test | Download CSV share one 3-column action row (the
+// CSV link left its lone note paragraph); every btnrow keeps a margin
+// to the row above.
+void test_ui_csv_button_in_action_row(void) {
+  TEST_ASSERT_EQUAL_UINT32(1, countInHtml("id=\"csvDownload\""));
+  TEST_ASSERT_TRUE(inHtml("btnrow btnrow3"));
+  TEST_ASSERT_TRUE(inHtml(".btnrow3"));
+  TEST_ASSERT_EQUAL_UINT32(0, countInHtml("p class=\"note\"><a class=\"btn\""));
+}
+
 void runUiHtmlTests(void) {
   RUN_TEST(test_index_html_has_content);
   RUN_TEST(test_index_html_declares_language_and_charset);
@@ -534,6 +553,8 @@ void runUiHtmlTests(void) {
   RUN_TEST(test_ui_reboot_announce_is_latched);
   RUN_TEST(test_ui_selftest_rows_rerender_on_locale_switch);
   RUN_TEST(test_ui_test_and_runcurve_share_a_row);
+  RUN_TEST(test_ui_h1_is_jantec_atlas);
+  RUN_TEST(test_ui_csv_button_in_action_row);
   RUN_TEST(test_i18n_dictionary_has_both_locales);
   RUN_TEST(test_i18n_dictionary_is_complete);
   RUN_TEST(test_all_data_cmd_values_are_known_commands);

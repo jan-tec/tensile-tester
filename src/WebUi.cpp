@@ -179,7 +179,12 @@ void WebUi::handleCommandApi() {
 
   String response;
   const String command = server_.arg("cmd");
-  const bool ok = commands_.execute(command, response);
+  // M6-T005 (plan D1): the web path ignores the error code and the pos
+  // data - its contract is the HTTP body alone (FR-006 byte-identical);
+  // the T006 event echo is the serial-side consumer.
+  ErrorCode error;
+  PosData pos;
+  const bool ok = commands_.execute(command, response, error, pos);
   Serial.print(msg(Msg::WebCommand));
   Serial.println(command);
   Serial.println(response);

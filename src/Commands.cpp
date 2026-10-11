@@ -9,26 +9,56 @@ String Commands::helpText() {
   return String(msg(Msg::HelpCommandsPrefix)) + msg(Msg::HelpCommandsSuffix);
 }
 
-void Commands::printPosition() {
-  Serial.print(msg(Msg::PositionSteps));
-  Serial.print(motion_.steps());
-  Serial.print(msg(Msg::StatusTravelLabel));
-  if (testRunner_.homed()) {
+// M6-T005 (plan D2): the policy computes, the surface renders. This is
+// the old printPosition() body minus every Serial write - byte-identical
+// text, now a String the caller (SerialCli for `pos`, App for the
+// periodic status line) prints where it belongs.
+PosData Commands::positionData() {
+  PosData pos;
+  pos.steps = motion_.steps();
+  pos.homed = testRunner_.homed();
+  pos.posMm = motion_.positionMm();
+  pos.cellReady = loadcell_.isReady();
+  pos.forceN = loadcell_.forceNewton();
+  return pos;
+}
+
+String Commands::positionText(const PosData &pos) {
+  String text = String(msg(Msg::PositionSteps)) + pos.steps +
+                msg(Msg::StatusTravelLabel);
+  if (pos.homed) {
     // M3 FR-006: mm are only meaningful upward from the bottom datum.
-    Serial.print(motion_.positionMm(), 3);
+    text += String(pos.posMm, 3);
   } else {
-    Serial.print(msg(Msg::NotAvailable));
+    text += msg(Msg::NotAvailable);
   }
-  Serial.print(msg(Msg::StatusForceLabel));
-  if (loadcell_.isReady()) {
-    Serial.println(loadcell_.forceNewton(), 2);
+  text += msg(Msg::StatusForceLabel);
+  if (pos.cellReady) {
+    text += String(pos.forceN, 2);
   } else {
     // HX711 not ready: no force reading (M1 T005)
-    Serial.println(msg(Msg::NotAvailable));
+    text += msg(Msg::NotAvailable);
   }
-  if (!testRunner_.homed()) {
-    Serial.println(msg(Msg::PositionDatumUnknown));
+  text += "\n";
+  if (!pos.homed) {
+    text += msg(Msg::PositionDatumUnknown);
+    text += "\n";
   }
+  return text;
+}
+
+// M6 FR-002 (plan D2): one snapshot per reply/event - T006's envelope
+// rendering consumes this; never read members twice for one line.
+ApiStateSnapshot Commands::stateSnapshot() {
+  ApiStateSnapshot s{};
+  s.posMm = motion_.positionMm();
+  s.forceN = loadcell_.forceNewton();
+  s.cellReady = loadcell_.isReady();
+  s.calValid = loadcell_.calibrationValid();
+  s.homed = testRunner_.homed();
+  s.faultCode = diagnostics_.model().faultCode();
+  s.cycleState = TestCycleModel::name(testRunner_.testState());
+  return s;
 }
 
 ParseResult Commands::parseValueAfterCommand(const String &command,
@@ -40,8 +70,9 @@ ParseResult Commands::parseValueAfterCommand(const String &command,
   return parseCommandValue(command.c_str(), prefix, &value);
 }
 
-bool Commands::reportInvalidValue(String &response) const {
+bool Commands::reportInvalidValue(String &response, ErrorCode &error) const {
   response = msg(Msg::InvalidValue);
+  error = ErrorCode::InvalidValue;
   return false;
 }
 
@@ -51,26 +82,32 @@ ParseResult Commands::parseIndexAfterCommand(const String &command,
   return parseCommandIndex(command.c_str(), prefix, &index);
 }
 
-bool Commands::testConfigChangeAllowed(String &response) const {
+bool Commands::testConfigChangeAllowed(String &response,
+                                       ErrorCode &error) const {
   if (diagnostics_.model().state() == DeviceState::Error) {
     response = msg(Msg::ConfigLockedInFault);
+    // Same rule as the motion rejection: surface the fault itself.
+    error = static_cast<ErrorCode>(diagnostics_.model().faultCode());
     return false;
   }
   if (testRunner_.active()) {
     response = msg(Msg::CycleBusy);
+    error = ErrorCode::StateConflict;
     return false;
   }
   return true;
 }
 
 bool Commands::applyTestConfigValue(float value, String &response,
+                                    ErrorCode &error,
                                     float TestConfig::*field,
                                     const char *suffix) {
   if (value <= 0.0f) {
     response = msg(Msg::ValueMustBePositive);
+    error = ErrorCode::InvalidValue;
     return false;
   }
-  if (!testConfigChangeAllowed(response)) {
+  if (!testConfigChangeAllowed(response, error)) {
     return false;
   }
   TestConfig config = testRunner_.config();
@@ -110,10 +147,14 @@ void Commands::pollDump() {
   }
 }
 
-bool Commands::execute(String command, String &response) {
+bool Commands::execute(String command, String &response, ErrorCode &error,
+                       PosData &pos) {
   command.trim();
+  error = ErrorCode::None;
+  pos = PosData{};
   if (command.isEmpty()) {
     response = msg(Msg::EmptyCommand);
+    error = ErrorCode::EmptyCommand;
     return false;
   }
 
@@ -131,6 +172,9 @@ bool Commands::execute(String command, String &response) {
              model.faultCode(), msg(Msg::FaultStateSuffix),
              msg(msgForFault(static_cast<ErrorCode>(model.faultCode()))));
     response = String(buffer);
+    // The rejection IS the fault: the envelope surfaces the 0x01xx..0x05xx
+    // code itself (ApiResponse contract: fault codes may ride error.code).
+    error = static_cast<ErrorCode>(model.faultCode());
     return false;
   }
 
@@ -139,7 +183,7 @@ bool Commands::execute(String command, String &response) {
   const ParseResult langResult =
       parseLocaleAfterCommand(command.c_str(), "lang", &locale);
   if (langResult == ParseResult::InvalidValue) {
-    return reportInvalidValue(response);
+    return reportInvalidValue(response, error);
   }
   if (langResult == ParseResult::Ok) {
     setTextLocale(locale);
@@ -172,12 +216,19 @@ bool Commands::execute(String command, String &response) {
     loadcell_.tare();
     response = loadcell_.isReady() ? msg(Msg::LoadCellTared)
                                    : msg(Msg::Hx711NotReady);
-    return loadcell_.isReady();
+    if (!loadcell_.isReady()) {
+      // jane: lossy mapping (plan D8 risk note) - the HX711-unavailable
+      // family shares NotCalibrated until a consumer needs the split.
+      error = ErrorCode::NotCalibrated;
+      return false;
+    }
+    return true;
   }
 
   if (named == Command::CalZero) {
     if (!loadcell_.captureZeroPoint()) {
       response = msg(Msg::Hx711NotReady);
+      error = ErrorCode::NotCalibrated;  // jane: lossy, see Tare
       return false;
     }
     response = msg(Msg::CalZeroCaptured);
@@ -189,27 +240,34 @@ bool Commands::execute(String command, String &response) {
   const ParseResult calApplyResult =
       parseValueAfterCommand(command, "cal_apply", value);
   if (calApplyResult == ParseResult::InvalidValue) {
-    return reportInvalidValue(response);
+    return reportInvalidValue(response, error);
   }
   if (calApplyResult == ParseResult::Ok) {
     switch (loadcell_.calibrateWithMass(value)) {
       case LoadCell::CalError::NotReady:
         response = msg(Msg::Hx711NotReady);
+        error = ErrorCode::NotCalibrated;  // jane: lossy, see Tare
         return false;
       case LoadCell::CalError::ZeroNotCaptured:
         response = msg(Msg::CalStep1First);
+        // Wizard-sequence conflict: step 2 before step 1.
+        error = ErrorCode::StateConflict;
         return false;
       case LoadCell::CalError::InvalidMass:
         response = msg(Msg::CalWeightMustBePositive);
+        error = ErrorCode::InvalidValue;
         return false;
       case LoadCell::CalError::ReadFailed:
         response = msg(Msg::CalValueUnreadable);
+        error = ErrorCode::NotCalibrated;  // jane: lossy, see Tare
         return false;
       case LoadCell::CalError::ZeroFactor:
         response = msg(Msg::CalFailedZeroFactor);
+        error = ErrorCode::NotCalibrated;
         return false;
       case LoadCell::CalError::NegativeFactor:
         response = msg(Msg::CalFailedNegativeFactor);
+        error = ErrorCode::NotCalibrated;
         return false;
       case LoadCell::CalError::None:
         break;
@@ -246,12 +304,14 @@ bool Commands::execute(String command, String &response) {
     // D11: exclusive; the D15 Error-state rejection already ran above.
     if (testRunner_.active()) {
       response = msg(Msg::CycleBusy);
+      error = ErrorCode::StateConflict;
       return false;
     }
     if (testRunner_.dumpInProgress()) {
       // A started test would clear the sample buffer mid-dump (and a
       // homing report line would land inside the CSV stream).
       response = msg(Msg::DumpBusy);
+      error = ErrorCode::StateConflict;
       return false;
     }
     const bool topOnly = named == Command::HomeTop;
@@ -259,6 +319,7 @@ bool Commands::execute(String command, String &response) {
       // Homing FSM latched Fault (device Error) - unreachable through the
       // Error gate above, kept as a defensive no-crash path.
       response = msg(Msg::CycleBusy);
+      error = ErrorCode::StateConflict;
       return false;
     }
     response = msg(topOnly ? Msg::HomeTopStarted : Msg::HomeStarted);
@@ -268,16 +329,19 @@ bool Commands::execute(String command, String &response) {
   if (named == Command::Test) {
     if (testRunner_.active()) {
       response = msg(Msg::CycleBusy);
+      error = ErrorCode::StateConflict;
       return false;
     }
     if (testRunner_.dumpInProgress()) {
       // startTest() clears the buffer - mid-dump that destroys the very
       // data being streamed (US2).
       response = msg(Msg::DumpBusy);
+      error = ErrorCode::StateConflict;
       return false;
     }
     if (!testRunner_.startTest()) {
       response = msg(Msg::CycleBusy);
+      error = ErrorCode::StateConflict;
       return false;
     }
     response = msg(Msg::TestStarted);
@@ -285,18 +349,23 @@ bool Commands::execute(String command, String &response) {
   }
 
   if (named == Command::Pos) {
-    printPosition();
+    // M6-T005 (plan D2): the policy computes, the surface renders - the
+    // block goes out via PosData; response stays the ack line so the
+    // web path keeps its byte-identical HTTP body (FR-006).
+    pos = positionData();
+    pos.valid = true;
     response = msg(Msg::PositionPrinted);
     return true;
   }
 
   const ParseResult rpmResult = parseValueAfterCommand(command, "rpm", value);
   if (rpmResult == ParseResult::InvalidValue) {
-    return reportInvalidValue(response);
+    return reportInvalidValue(response, error);
   }
   if (rpmResult == ParseResult::Ok) {
     if (value <= 0.0f) {
       response = msg(Msg::RpmMustBePositive);
+      error = ErrorCode::InvalidValue;
       return false;
     }
 
@@ -308,11 +377,12 @@ bool Commands::execute(String command, String &response) {
 
   const ParseResult accResult = parseValueAfterCommand(command, "acc", value);
   if (accResult == ParseResult::InvalidValue) {
-    return reportInvalidValue(response);
+    return reportInvalidValue(response, error);
   }
   if (accResult == ParseResult::Ok) {
     if (value <= 0.0f) {
       response = msg(Msg::AccelMustBePositive);
+      error = ErrorCode::InvalidValue;
       return false;
     }
 
@@ -325,11 +395,12 @@ bool Commands::execute(String command, String &response) {
   const ParseResult feedResult =
       parseValueAfterCommand(command, "feed", value);
   if (feedResult == ParseResult::InvalidValue) {
-    return reportInvalidValue(response);
+    return reportInvalidValue(response, error);
   }
   if (feedResult == ParseResult::Ok) {
     if (value <= 0.0f) {
       response = msg(Msg::FeedMustBePositive);
+      error = ErrorCode::InvalidValue;
       return false;
     }
 
@@ -356,7 +427,7 @@ bool Commands::execute(String command, String &response) {
 
   const ParseResult moveResult = parseValueAfterCommand(command, "move", value);
   if (moveResult == ParseResult::InvalidValue) {
-    return reportInvalidValue(response);
+    return reportInvalidValue(response, error);
   }
   if (moveResult == ParseResult::Ok) {
     motion_.startMoveToSteps(
@@ -368,7 +439,7 @@ bool Commands::execute(String command, String &response) {
 
   const ParseResult turnResult = parseValueAfterCommand(command, "turn", value);
   if (turnResult == ParseResult::InvalidValue) {
-    return reportInvalidValue(response);
+    return reportInvalidValue(response, error);
   }
   if (turnResult == ParseResult::Ok) {
     motion_.startMoveToSteps(
@@ -382,10 +453,10 @@ bool Commands::execute(String command, String &response) {
   const ParseResult testSpeedResult =
       parseValueAfterCommand(command, "testspeed", value);
   if (testSpeedResult == ParseResult::InvalidValue) {
-    return reportInvalidValue(response);
+    return reportInvalidValue(response, error);
   }
   if (testSpeedResult == ParseResult::Ok) {
-    return applyTestConfigValue(value, response,
+    return applyTestConfigValue(value, response, error,
                                 &TestConfig::testSpeedMmPerMin,
                                 msg(Msg::MillimetrePerMinuteSuffix));
   }
@@ -393,20 +464,22 @@ bool Commands::execute(String command, String &response) {
   const ParseResult testArmResult =
       parseValueAfterCommand(command, "testarm", value);
   if (testArmResult == ParseResult::InvalidValue) {
-    return reportInvalidValue(response);
+    return reportInvalidValue(response, error);
   }
   if (testArmResult == ParseResult::Ok) {
-    return applyTestConfigValue(value, response, &TestConfig::armForceN,
+    return applyTestConfigValue(value, response, error,
+                                &TestConfig::armForceN,
                                 msg(Msg::NewtonSuffix));
   }
 
   const ParseResult testDropResult =
       parseValueAfterCommand(command, "testdrop", value);
   if (testDropResult == ParseResult::InvalidValue) {
-    return reportInvalidValue(response);
+    return reportInvalidValue(response, error);
   }
   if (testDropResult == ParseResult::Ok) {
-    return applyTestConfigValue(value, response, &TestConfig::dropPercent,
+    return applyTestConfigValue(value, response, error,
+                                &TestConfig::dropPercent,
                                 msg(Msg::PercentSuffix));
   }
 
@@ -417,14 +490,15 @@ bool Commands::execute(String command, String &response) {
   const ParseResult homeSeekResult =
       parseValueAfterCommand(command, "homeseek", value);
   if (homeSeekResult == ParseResult::InvalidValue) {
-    return reportInvalidValue(response);
+    return reportInvalidValue(response, error);
   }
   if (homeSeekResult == ParseResult::Ok) {
     if (value < 0.0f) {
       response = msg(Msg::ValueMustBePositive);
+      error = ErrorCode::InvalidValue;
       return false;
     }
-    if (!testConfigChangeAllowed(response)) {
+    if (!testConfigChangeAllowed(response, error)) {
       return false;
     }
     TestConfig config = testRunner_.config();
@@ -444,14 +518,15 @@ bool Commands::execute(String command, String &response) {
   const ParseResult homeTimeoutResult =
       parseValueAfterCommand(command, "hometimeout", value);
   if (homeTimeoutResult == ParseResult::InvalidValue) {
-    return reportInvalidValue(response);
+    return reportInvalidValue(response, error);
   }
   if (homeTimeoutResult == ParseResult::Ok) {
     if (value <= 0.0f || value > 300.0f) {
       response = msg(Msg::ValueMustBePositive);
+      error = ErrorCode::InvalidValue;
       return false;
     }
-    if (!testConfigChangeAllowed(response)) {
+    if (!testConfigChangeAllowed(response, error)) {
       return false;
     }
     TestConfig config = testRunner_.config();
@@ -471,15 +546,17 @@ bool Commands::execute(String command, String &response) {
   const ParseResult dataIndexResult =
       parseIndexAfterCommand(command, "data", dataIndex);
   if (dataIndexResult == ParseResult::InvalidValue) {
-    return reportInvalidValue(response);
+    return reportInvalidValue(response, error);
   }
   if (dataIndexResult == ParseResult::Ok) {
     if (testRunner_.active()) {
       response = msg(Msg::DumpBlockedRunning);
+      error = ErrorCode::StateConflict;
       return false;
     }
     if (testRunner_.dumpInProgress()) {
       response = msg(Msg::DumpBusy);
+      error = ErrorCode::StateConflict;
       return false;
     }
     testRunner_.beginDump(dataIndex);
@@ -490,10 +567,12 @@ bool Commands::execute(String command, String &response) {
   if (command == "data") {
     if (testRunner_.active()) {
       response = msg(Msg::DumpBlockedRunning);
+      error = ErrorCode::StateConflict;
       return false;
     }
     if (testRunner_.dumpInProgress()) {
       response = msg(Msg::DumpBusy);
+      error = ErrorCode::StateConflict;
       return false;
     }
     testRunner_.beginDump(static_cast<size_t>(0));
@@ -538,5 +617,6 @@ bool Commands::execute(String command, String &response) {
   }
 
   response = msg(Msg::UnknownCommand);
+  error = ErrorCode::UnknownCommand;
   return false;
 }

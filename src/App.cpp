@@ -174,9 +174,12 @@ void App::loop() {
     lastStatusMs_ = now;
     // D14 (M3): while a CSV dump is in flight the serial line belongs to
     // it alone - an interleaved status line would break the host parser.
+    // M6-T005 (plan D2): the status line renders here in App now - the
+    // policy computes (positionData), the surface renders. T006 turns
+    // this into the {"event":"status"} JSON line.
     if (!testRunner_.dumpInProgress() &&
         (motion_.isEnabled() || loadcell_.isReady())) {
-      commands_.printPosition();
+      Serial.print(Commands::positionText(commands_.positionData()));
     }
   }
 }

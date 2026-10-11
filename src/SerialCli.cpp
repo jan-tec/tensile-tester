@@ -10,7 +10,14 @@ void SerialCli::poll() {
 
     if (incoming == '\n') {
       String response;
-      const bool ok = commands_.execute(buffer_, response);
+      ErrorCode error;  // M6-T005: consumed by the T006 envelope
+      PosData pos;
+      const bool ok = commands_.execute(buffer_, response, error, pos);
+      if (pos.valid) {
+        // M6-T005 (plan D2): the surface renders the position block the
+        // policy computed (byte-identical to the old policy-side print).
+        Serial.print(Commands::positionText(pos));
+      }
       Serial.println(response);
       if (!ok) {
         Serial.println(Commands::helpText());

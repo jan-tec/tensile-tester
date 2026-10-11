@@ -19,14 +19,29 @@
 #pragma once
 
 #include <Arduino.h>
+#include <ApiResponse.h>
 #include <FirmwareCore.h>
 
+#include "ErrorCode.h"
 #include "LoadCell.h"
 #include "Motion.h"
 
 class Diagnostics;
 class Settings;
 class TestRunner;
+
+// M6-T005 (plan D2, #181): position data computed by the policy, rendered
+// by the SURFACE (serial CLI / App today; the JSON envelope in T006).
+// `valid` is set only by the `pos` command - callers use it to decide
+// whether a position block belongs into the output.
+struct PosData {
+  bool valid = false;
+  long steps = 0;
+  bool homed = false;
+  float posMm = 0.0f;   // meaningful only when homed (M3 FR-006)
+  bool cellReady = false;
+  float forceN = 0.0f;  // meaningful only when cellReady
+};
 
 class Commands {
  public:
@@ -43,12 +58,26 @@ class Commands {
   // the locale is switched with `lang <en|de>`). Returns true on success.
   // The serial caller prints helpText() on false; the Web API maps false
   // to HTTP 400.
-  bool execute(String command, String &response);
+  //
+  // M6-T005 (plan D1, #181): error receives the stable machine code for
+  // every failure return (ErrorCode::None on success; a fault-code
+  // rejection surfaces the 0x01xx..0x05xx fault). The serial path will
+  // render it into the JSON envelope (T006); the Web path ignores it -
+  // its contract is the HTTP body alone (FR-006 byte-identical).
+  // pos receives the position block data (valid=true only for `pos`).
+  bool execute(String command, String &response, ErrorCode &error,
+               PosData &pos);
 
-  // Serial status line, shared by the "pos" command and the periodic
-  // status output in the loop task. Travel shows n/a while no datum
-  // exists (M3 FR-006).
-  void printPosition();
+  // M6-T005 (plan D2, #181): the policy computes, the surface renders.
+  // Replaces the old printPosition() - Commands no longer writes to
+  // Serial; SerialCli/App render positionText(positionData()).
+  PosData positionData();
+  static String positionText(const PosData &pos);
+
+  // M6 FR-002 (plan D2): single state snapshot for the serial envelope;
+  // consumed by the T006 reply/event rendering (one snapshot per reply,
+  // never a mid-command tear).
+  ApiStateSnapshot stateSnapshot();
 
   // CSV dump pump (M3 D8): call from App::loop(); writes at most one
   // kCsvChunkBytes chunk per tick, only when the serial TX buffer can
@@ -86,19 +115,19 @@ class Commands {
 
   // Shared response for ParseResult::InvalidValue (NQP #43): the token was
   // present but not a number, distinct from the per-command "> 0" errors.
-  bool reportInvalidValue(String &response) const;
+  bool reportInvalidValue(String &response, ErrorCode &error) const;
 
   // Applies one test-config field change: rejects while a run is active
   // (applyConfig resets the homing FSM), clamps through the runner,
   // persists, replies with the EFFECTIVE (clamped) value + suffix.
-  bool applyTestConfigValue(float value, String &response,
+  bool applyTestConfigValue(float value, String &response, ErrorCode &error,
                             float TestConfig::*field, const char *suffix);
 
   // Shared gate for config changes: locked in fault state (applyConfig
   // resets the homing FSM - unlatching its Fault behind the device
   // Error gate would blur FR-009's recovery rule) and rejected while a
   // run is active (D11). True when the change may proceed.
-  bool testConfigChangeAllowed(String &response) const;
+  bool testConfigChangeAllowed(String &response, ErrorCode &error) const;
 
   Settings &settings_;
   Motion &motion_;

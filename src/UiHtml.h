@@ -92,6 +92,19 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
     .plot-card {
       grid-column: 1 / -1;
     }
+    /* Operator request 2026-10-11: "Tensile test" and "Run curve" share
+       one 50/50 row on desktop (they were stacked: the test card sat in
+       a narrow auto-fit column looking shifted, the plot full-width
+       below). Below 640 px they stack like everything else. */
+    .row2 {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .row2 .plot-card {
+      grid-column: auto;
+    }
     h2 {
       margin: 0 0 14px;
       font-size: 0.95rem;
@@ -297,6 +310,7 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
     }
     @media (max-width: 640px) {
       .status, .btnrow { grid-template-columns: 1fr; }
+      .row2 { grid-template-columns: 1fr; }
     }
     @media (prefers-reduced-motion: reduce) {
       button, a.btn { transition: none; }
@@ -316,6 +330,7 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
     </div>
 
     <div class="grid">
+      <div class="row2">
       <section class="card">
         <h2 data-i18n="headTest">Tensile test</h2>
         <div class="status">
@@ -342,6 +357,7 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
         <p class="note" id="curveNote" data-i18n="curveEmpty">No run data yet.</p>
         <p class="note"><button class="secondary" id="curveRefresh" type="button" data-i18n="btnCurve">Reload curve</button></p>
       </section>
+      </div>
 
       <section class="card plot-card">
         <h2 data-i18n="headPlot">Force curve</h2>

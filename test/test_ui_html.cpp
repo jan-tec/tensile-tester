@@ -511,6 +511,13 @@ void test_ui_selftest_rows_rerender_on_locale_switch(void) {
   TEST_ASSERT_TRUE(inHtml("lastSelftestChecksKey"));
 }
 
+// Layout contract (operator request 2026-10-11): "Tensile test" and
+// "Run curve" share one 50/50 row on desktop, stacking below 640 px.
+void test_ui_test_and_runcurve_share_a_row(void) {
+  TEST_ASSERT_TRUE(inHtml("class=\"row2\""));
+  TEST_ASSERT_TRUE(inHtml(".row2 .plot-card"));
+}
+
 void runUiHtmlTests(void) {
   RUN_TEST(test_index_html_has_content);
   RUN_TEST(test_index_html_declares_language_and_charset);
@@ -526,6 +533,7 @@ void runUiHtmlTests(void) {
   RUN_TEST(test_ui_status_fetch_has_timeout);
   RUN_TEST(test_ui_reboot_announce_is_latched);
   RUN_TEST(test_ui_selftest_rows_rerender_on_locale_switch);
+  RUN_TEST(test_ui_test_and_runcurve_share_a_row);
   RUN_TEST(test_i18n_dictionary_has_both_locales);
   RUN_TEST(test_i18n_dictionary_is_complete);
   RUN_TEST(test_all_data_cmd_values_are_known_commands);

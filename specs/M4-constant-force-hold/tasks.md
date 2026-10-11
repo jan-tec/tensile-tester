@@ -25,7 +25,7 @@ list changes, sync the GitHub issues in the same PR (AGENTS.md).
       mode + `overwritten` counter; M3 behavior unchanged.
       Host: 8192-cap ring test.
       Issue: M4-T004
-- [ ] **T005** TestRunner Hold mode (D1): mode flag, Homing reuse,
+- [x] **T005** TestRunner Hold mode (D1): mode flag, Homing reuse,
       approach actuation (D4 incl. compression transit + D26 bound),
       per-tick controller drive, endstop Limit, power fault -> fault
       end reason, stop. Target smoke: first bench hold.

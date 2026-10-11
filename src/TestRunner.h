@@ -29,6 +29,7 @@
 #include <Arduino.h>
 
 #include <BreakDetect.h>
+#include <HoldController.h>
 #include <Homing.h>
 #include <TestConfig.h>
 #include <TestCycle.h>
@@ -75,6 +76,20 @@ class TestRunner {
   // operator may have inserted the sample after homing.
   bool startTest();
 
+  // `chold <N> [min]` (M4 FR-001): constant-force hold. Same gates as
+  // startTest (exclusivity, latched homing fault); setpoint clamps via
+  // clampHoldSetpointN and 0/non-finite is rejected (caller maps to an
+  // error reply). Duration minutes -> ms; 0 = until `stop`. Homing
+  // reuses the M3 FSM (FR-007) - standalone if no datum, skipped if
+  // homed (#81 analogue).
+  bool startHold(float setpointN, float durationMin);
+
+  // The last hold's outcome (T006 renders the summary/event; valid
+  // after a terminal phase, survives later config writes).
+  bool holdReportValid() const { return holdReportValid_; }
+  HoldController::End holdEndReason() const { return holdEnd_; }
+  const HoldController::Report &holdReport() const { return holdReport_; }
+
   // `stop` routes here first (T012): aborts a running cycle (Aborted)
   // or a standalone homing; leaves the data buffer untouched. False
   // when nothing was running.
@@ -85,9 +100,10 @@ class TestRunner {
   // records Error with the data retained (US3, A3).
   void tick(unsigned long nowMs, bool deviceInError);
 
-  // D11 exclusivity: a homing (standalone or in-cycle) or cycle run.
+  // D11 exclusivity: a homing (standalone or in-cycle), a cycle run, or
+  // a hold (M4 FR-001).
   bool active() const {
-    return cycle_.active() || homing_.motionWanted();
+    return cycle_.active() || homing_.motionWanted() || hold_.running();
   }
 
   // FR-006: bottom datum valid for this power cycle only (A2
@@ -141,6 +157,10 @@ class TestRunner {
   void beginPull(unsigned long nowMs);
   void tickPull(unsigned long nowMs);
   void tickTail(unsigned long nowMs);
+  void tickHold(unsigned long nowMs);   // M4: 10 Hz controller drive
+  void applyHoldOutput(const HoldController::Output &out);
+  void driveHoldSeek(int seekDir);      // approach/transit continuous seek
+  void finishHold(const HoldController::Output &out);
   void quiesceOnDeviceError();
   void handleHomingTransition();
   void driveHomingMotion();
@@ -157,9 +177,16 @@ class TestRunner {
   TestCycleModel cycle_;
   HomingModel homing_;
   BreakDetector detector_;
+  HoldController hold_;  // M4: the pure hold brain (runner actuates)
   SampleBuffer buffer_;  // 64 KB; TestRunner lives in static storage
 
   bool homed_ = false;
+  bool holdHomingDone_ = false;   // M4: datum ready signal into hold_
+  float holdOriginMm_ = 0.0f;     // M4: CSV displacement origin (approach start)
+  bool holdOriginSet_ = false;
+  bool holdReportValid_ = false;
+  HoldController::End holdEnd_ = HoldController::End::None;
+  HoldController::Report holdReport_{};
   bool breakDetected_ = false;
   float breakPositionMm_ = 0.0f;
   float runPeakForceN_ = 0.0f;  // run record; see peakForceN() note

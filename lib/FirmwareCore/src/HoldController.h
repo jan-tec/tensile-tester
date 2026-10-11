@@ -118,6 +118,13 @@ class HoldController {
 
   void requestStop() { stopRequested_ = true; }
 
+  // True while a hold is in flight (pre-terminal phases) - feeds the
+  // D11 exclusivity in TestRunner::active().
+  bool running() const {
+    return phase_ == Phase::Homing || phase_ == Phase::Approach ||
+           phase_ == Phase::Holding;
+  }
+
   Phase phase() const { return phase_; }
   End endReason() const { return end_; }
 

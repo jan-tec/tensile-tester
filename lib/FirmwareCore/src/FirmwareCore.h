@@ -6,6 +6,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cmath>
 
 // Gear train: 200 full steps/rev motor x 13.73:1 gearbox x 8 microsteps
 // = 21968 steps per spindle revolution. Keep in sync with the hardware.
@@ -119,6 +120,30 @@ ParseResult parseCommandValue(const char* command, const char* prefix,
 // anything above UINT32_MAX. Bare prefix / prefix mismatch -> NotACommand.
 ParseResult parseCommandIndex(const char* command, const char* prefix,
                               uint32_t* index);
+
+// M4 FR-001: parse `chold <N> [minutes]` - signed force setpoint (tension
+// positive, compression negative) and an OPTIONAL duration in minutes
+// (0 = hold until operator `stop`; one decimal = 6 s resolution).
+// Same strictness family as parseCommandValue (#42/#43): word boundary
+// after `chold` (so choltol/choldclear never match), every token must be
+// fully consumed and finite, German decimal comma accepted. Bare `chold`
+// or a missing setpoint -> NotACommand; garbage -> InvalidValue.
+ParseResult parseCholdCommand(const char* command, float* setpointN,
+                              float* durationMin);
+
+// M4 plan D7: hold setpoint magnitude clamps to [1, 4000] N (floor above
+// the ~1 N noise, ceiling below the 4903 N cell rating), sign preserved.
+// Zero passes through for the CALLER to reject (0 N is no command).
+inline float clampHoldSetpointN(float n) {
+  if (!std::isfinite(n) || n == 0.0f) {
+    return n;
+  }
+  const float magnitude = n < 0.0f ? -n : n;
+  const float clamped = magnitude < 1.0f     ? 1.0f
+                        : magnitude > 4000.0f ? 4000.0f
+                                              : magnitude;
+  return n < 0.0f ? -clamped : clamped;
+}
 
 // ---------------------------------------------------------------------------
 // Locale model (pure). M2 FR-002 / TC-001: the UI locale selects the string

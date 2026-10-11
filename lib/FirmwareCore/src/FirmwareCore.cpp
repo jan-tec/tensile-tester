@@ -411,3 +411,55 @@ ParseResult parseLocaleAfterCommand(const char* command, const char* prefix,
   *locale = isDe ? Locale::De : Locale::En;
   return ParseResult::Ok;
 }
+
+ParseResult parseCholdCommand(const char* command, float* setpointN,
+                              float* durationMin) {
+  if (!startsWithCommandPrefix(command, "chold")) {
+    return ParseResult::NotACommand;
+  }
+  // Two optional tokens after the prefix: setpoint, then duration.
+  // Token validation mirrors parseCommandValue (#43 strictness): full
+  // strtof consumption, finite, German decimal comma accepted.
+  const char* rest = command + strlen("chold");
+  const char* whitespace = " \t\r\n";
+  while (*rest != '\0' && strchr(whitespace, *rest) != nullptr) {
+    rest++;
+  }
+  if (*rest == '\0') {
+    // Bare "chold": unknown-command fallthrough (help shows the grammar).
+    return ParseResult::NotACommand;
+  }
+  char remainder[64];
+  trimCopy(rest, remainder, sizeof(remainder));
+  for (char* p = remainder; *p != '\0'; ++p) {
+    if (*p == ',') {
+      *p = '.';
+    }
+  }
+  // Split into at most two tokens on whitespace.
+  char* save = nullptr;
+  char* token1 = strtok_r(remainder, whitespace, &save);
+  char* token2 = strtok_r(nullptr, whitespace, &save);
+  char* token3 = strtok_r(nullptr, whitespace, &save);
+  if (token1 == nullptr || token3 != nullptr) {
+    return token1 == nullptr ? ParseResult::NotACommand
+                             : ParseResult::InvalidValue;
+  }
+  char* end1 = nullptr;
+  const float parsedSetpoint = strtof(token1, &end1);
+  if (end1 == token1 || *end1 != '\0' || !std::isfinite(parsedSetpoint)) {
+    return ParseResult::InvalidValue;
+  }
+  float parsedDuration = 0.0f;  // omitted = until stop
+  if (token2 != nullptr) {
+    char* end2 = nullptr;
+    parsedDuration = strtof(token2, &end2);
+    if (end2 == token2 || *end2 != '\0' || !std::isfinite(parsedDuration) ||
+        parsedDuration < 0.0f) {
+      return ParseResult::InvalidValue;
+    }
+  }
+  *setpointN = parsedSetpoint;
+  *durationMin = parsedDuration;
+  return ParseResult::Ok;
+}

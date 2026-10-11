@@ -23,6 +23,9 @@
 //   - seek      -> 0 means "follow the test speed" and is PRESERVED; a
 //                  nonzero seek clamps to the feed range
 //   - timeout   -> [1 s, 300 s] in ms
+//   - hold tol  -> [1, 25] % (M4 FR-001, default 5)
+//   - hold clr  -> [1, 100] mm compression transit height (M4 FR-001,
+//                  default 20)
 //   - any non-finite float -> that field's default (NVS can hold anything)
 struct TestConfig {
   float testSpeedMmPerMin;
@@ -31,6 +34,8 @@ struct TestConfig {
   float homingClearanceMm;
   float homingSeekMmPerMin;  // 0 = follow testSpeedMmPerMin (FR-005)
   uint32_t homingTimeoutMs;
+  float holdTolerancePct;    // M4 FR-001: [1, 25] %, default 5
+  float holdClearanceMm;     // M4 FR-001: [1, 100] mm, default 20
 };
 
 inline TestConfig defaultTestConfig() {
@@ -41,6 +46,8 @@ inline TestConfig defaultTestConfig() {
   c.homingClearanceMm = 2.0f;
   c.homingSeekMmPerMin = 0.0f;  // follow the test speed
   c.homingTimeoutMs = 30000;
+  c.holdTolerancePct = 5.0f;
+  c.holdClearanceMm = 20.0f;
   return c;
 }
 
@@ -74,6 +81,12 @@ inline TestConfig clampTestConfig(TestConfig c) {
   }
   c.homingTimeoutMs = std::max<uint32_t>(1000, std::min<uint32_t>(
                                                    300000, c.homingTimeoutMs));
+  // M4 FR-001: closed intervals (0 tolerance / 0 clearance are unusable
+  // boundaries, unlike the open-at-zero arm force).
+  c.holdTolerancePct =
+      clampField(c.holdTolerancePct, 1.0f, 25.0f, d.holdTolerancePct);
+  c.holdClearanceMm =
+      clampField(c.holdClearanceMm, 1.0f, 100.0f, d.holdClearanceMm);
   return c;
 }
 

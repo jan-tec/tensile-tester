@@ -70,6 +70,10 @@ TestConfig Settings::loadTestConfig() {
       preferences_.getFloat(kPrefHomeSeek, d.homingSeekMmPerMin);
   c.homingTimeoutMs =
       preferences_.getUInt(kPrefHomeTimeout, d.homingTimeoutMs);
+  c.holdTolerancePct =
+      preferences_.getFloat(kPrefHoldTol, d.holdTolerancePct);
+  c.holdClearanceMm =
+      preferences_.getFloat(kPrefHoldClear, d.holdClearanceMm);
   preferences_.end();
 
   // Single validation boundary (TestConfig.h): NVS can hold anything a
@@ -86,5 +90,7 @@ void Settings::saveTestConfig(const TestConfig &config) {
   preferences_.putFloat(kPrefHomeClear, config.homingClearanceMm);
   preferences_.putFloat(kPrefHomeSeek, config.homingSeekMmPerMin);
   preferences_.putUInt(kPrefHomeTimeout, config.homingTimeoutMs);
+  preferences_.putFloat(kPrefHoldTol, config.holdTolerancePct);
+  preferences_.putFloat(kPrefHoldClear, config.holdClearanceMm);
   preferences_.end();
 }

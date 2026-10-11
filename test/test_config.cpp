@@ -7,6 +7,7 @@
 // runner may trust its input completely afterwards.
 #include <unity.h>
 
+#include <FirmwareCore.h>
 #include <TestConfig.h>
 
 #include <cmath>
@@ -94,6 +95,57 @@ void test_nonfinite_becomes_field_default(void) {
       1e-6f, d.homingClearanceMm, clampTestConfig(c).homingClearanceMm);
 }
 
+// M4 T001 (#205): hold config fields - defaults + clamp windows.
+void test_hold_config_defaults(void) {
+  const TestConfig c = defaultTestConfig();
+  TEST_ASSERT_FLOAT_WITHIN(1e-6f, 5.0f, c.holdTolerancePct);
+  TEST_ASSERT_FLOAT_WITHIN(1e-6f, 20.0f, c.holdClearanceMm);
+}
+
+void test_clamp_hold_fields(void) {
+  TestConfig c = defaultTestConfig();
+  c.holdTolerancePct = 0.0f;  // below floor -> closed-interval clamp
+  TEST_ASSERT_FLOAT_WITHIN(1e-6f, 1.0f,
+                           clampTestConfig(c).holdTolerancePct);
+  c.holdTolerancePct = 50.0f;
+  TEST_ASSERT_FLOAT_WITHIN(1e-6f, 25.0f,
+                           clampTestConfig(c).holdTolerancePct);
+  c.holdTolerancePct = 7.5f;  // in range stays
+  TEST_ASSERT_FLOAT_WITHIN(1e-6f, 7.5f,
+                           clampTestConfig(c).holdTolerancePct);
+  c.holdClearanceMm = 0.0f;
+  TEST_ASSERT_FLOAT_WITHIN(1e-6f, 1.0f, clampTestConfig(c).holdClearanceMm);
+  c.holdClearanceMm = 500.0f;
+  TEST_ASSERT_FLOAT_WITHIN(1e-6f, 100.0f, clampTestConfig(c).holdClearanceMm);
+  c.holdClearanceMm = 33.0f;
+  TEST_ASSERT_FLOAT_WITHIN(1e-6f, 33.0f, clampTestConfig(c).holdClearanceMm);
+}
+
+void test_hold_nonfinite_becomes_field_default(void) {
+  const TestConfig d = defaultTestConfig();
+  const float inf = INFINITY;
+  const float nanv = NAN;
+  TestConfig c = d;
+  c.holdTolerancePct = inf;
+  c.holdClearanceMm = -nanv;
+  TEST_ASSERT_FLOAT_WITHIN(1e-6f, d.holdTolerancePct,
+                           clampTestConfig(c).holdTolerancePct);
+  TEST_ASSERT_FLOAT_WITHIN(1e-6f, d.holdClearanceMm,
+                           clampTestConfig(c).holdClearanceMm);
+}
+
+// M4 D7: setpoint magnitude [1, 4000] N, sign preserved; zero is passed
+// through for the CALLER to reject (0 N is no command, not a clamp case).
+void test_clamp_hold_setpoint(void) {
+  TEST_ASSERT_FLOAT_WITHIN(1e-6f, 4000.0f, clampHoldSetpointN(5000.0f));
+  TEST_ASSERT_FLOAT_WITHIN(1e-6f, 1.0f, clampHoldSetpointN(0.5f));
+  TEST_ASSERT_FLOAT_WITHIN(1e-6f, -4000.0f, clampHoldSetpointN(-5000.0f));
+  TEST_ASSERT_FLOAT_WITHIN(1e-6f, -1.0f, clampHoldSetpointN(-0.5f));
+  TEST_ASSERT_FLOAT_WITHIN(1e-6f, 50.0f, clampHoldSetpointN(50.0f));
+  TEST_ASSERT_FLOAT_WITHIN(1e-6f, -50.0f, clampHoldSetpointN(-50.0f));
+  TEST_ASSERT_FLOAT_WITHIN(1e-6f, 0.0f, clampHoldSetpointN(0.0f));
+}
+
 void runConfigTests(void) {
   RUN_TEST(test_default_config);
   RUN_TEST(test_clamp_speed);
@@ -102,4 +154,8 @@ void runConfigTests(void) {
   RUN_TEST(test_seek_zero_follows_test_speed);
   RUN_TEST(test_clamp_timeout);
   RUN_TEST(test_nonfinite_becomes_field_default);
+  RUN_TEST(test_hold_config_defaults);
+  RUN_TEST(test_clamp_hold_fields);
+  RUN_TEST(test_hold_nonfinite_becomes_field_default);
+  RUN_TEST(test_clamp_hold_setpoint);
 }

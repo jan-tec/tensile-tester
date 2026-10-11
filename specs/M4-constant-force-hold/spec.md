@@ -1,6 +1,6 @@
 # Feature Specification: M4 - Constant-Force Hold (Creep-Style Test)
 
-Status: Draft | Rigor: Spec-Anchored | Created: 2026-10-07 | Depends on: M3
+Status: In progress (T001 shipped, #205; T002-T009 open) | Rigor: Spec-Anchored | Created: 2026-10-07 | Depends on: M3
 (homing, sampling, USB data path)
 
 **Goal:** Apply and hold a constant force setpoint on the sample by

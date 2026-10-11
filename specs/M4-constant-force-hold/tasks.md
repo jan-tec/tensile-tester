@@ -5,7 +5,7 @@ list changes, sync the GitHub issues in the same PR (AGENTS.md).
 
 ## Chain
 
-- [ ] **T001** HoldConfig in TestConfig (D7): `holdTolerancePct`
+- [x] **T001** HoldConfig in TestConfig (D7): `holdTolerancePct`
       [1,25] d5, `holdClearanceMm` [1,100] d20 through
       `clampTestConfig` + `defaultTestConfig`; NVS round-trip via
       Settings; parser entries `chold/choltol/choldclear` (value

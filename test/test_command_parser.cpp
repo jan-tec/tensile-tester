@@ -320,6 +320,63 @@ void test_parse_command_index_invalid(void) {
                         static_cast<int>(parseCommandIndex("pos", "data", &index)));
 }
 
+// M4 T001 (#205): `chold <N> [minutes]` grammar - signed setpoint,
+// optional duration (0 = until stop), strict tokens (NQP #43 family).
+void test_parse_chold_tension_with_duration(void) {
+  float setpoint = 0, minutes = -1;
+  TEST_ASSERT_PARSE(ParseResult::Ok,
+                    parseCholdCommand("chold 50 5", &setpoint, &minutes));
+  TEST_ASSERT_FLOAT_WITHIN(1e-6f, 50.0f, setpoint);
+  TEST_ASSERT_FLOAT_WITHIN(1e-6f, 5.0f, minutes);
+}
+
+void test_parse_chold_negative_no_duration(void) {
+  float setpoint = 0, minutes = -1;
+  TEST_ASSERT_PARSE(ParseResult::Ok,
+                    parseCholdCommand("chold -50", &setpoint, &minutes));
+  TEST_ASSERT_FLOAT_WITHIN(1e-6f, -50.0f, setpoint);
+  TEST_ASSERT_FLOAT_WITHIN(1e-6f, 0.0f, minutes);  // 0 = until stop
+}
+
+void test_parse_chold_decimal_duration_and_comma(void) {
+  float setpoint = 0, minutes = -1;
+  TEST_ASSERT_PARSE(ParseResult::Ok,
+                    parseCholdCommand("chold 25 1.5", &setpoint, &minutes));
+  TEST_ASSERT_FLOAT_WITHIN(1e-6f, 25.0f, setpoint);
+  TEST_ASSERT_FLOAT_WITHIN(1e-6f, 1.5f, minutes);
+  // Legacy German decimal comma in BOTH tokens.
+  TEST_ASSERT_PARSE(ParseResult::Ok,
+                    parseCholdCommand("chold 50,5 2", &setpoint, &minutes));
+  TEST_ASSERT_FLOAT_WITHIN(1e-6f, 50.5f, setpoint);
+  TEST_ASSERT_FLOAT_WITHIN(1e-6f, 2.0f, minutes);
+}
+
+void test_parse_chold_bare_is_not_the_command(void) {
+  float setpoint = 0, minutes = 0;
+  TEST_ASSERT_PARSE(ParseResult::NotACommand,
+                    parseCholdCommand("chold", &setpoint, &minutes));
+  TEST_ASSERT_PARSE(ParseResult::NotACommand,
+                    parseCholdCommand("en", &setpoint, &minutes));
+  // Word boundary (#42 family): choltol/choldclear are NOT chold.
+  TEST_ASSERT_PARSE(ParseResult::NotACommand,
+                    parseCholdCommand("choltol 5", &setpoint, &minutes));
+  TEST_ASSERT_PARSE(ParseResult::NotACommand,
+                    parseCholdCommand("choldclear 20", &setpoint, &minutes));
+}
+
+void test_parse_chold_garbage_is_invalid(void) {
+  float setpoint = 0, minutes = 0;
+  TEST_ASSERT_PARSE(ParseResult::InvalidValue,
+                    parseCholdCommand("chold abc", &setpoint, &minutes));
+  TEST_ASSERT_PARSE(ParseResult::InvalidValue,
+                    parseCholdCommand("chold 50 x", &setpoint, &minutes));
+  TEST_ASSERT_PARSE(ParseResult::InvalidValue,
+                    parseCholdCommand("chold 50 5 extra", &setpoint,
+                                      &minutes));
+  TEST_ASSERT_PARSE(ParseResult::InvalidValue,
+                    parseCholdCommand("chold inf", &setpoint, &minutes));
+}
+
 void runCommandParserTests() {
   RUN_TEST(test_command_from_name_exact);
   RUN_TEST(test_command_from_name_trims_whitespace);
@@ -347,4 +404,9 @@ void runCommandParserTests() {
   RUN_TEST(test_m3_motion_command_rejection);
   RUN_TEST(test_parse_command_index_basic);
   RUN_TEST(test_parse_command_index_invalid);
+  RUN_TEST(test_parse_chold_tension_with_duration);
+  RUN_TEST(test_parse_chold_negative_no_duration);
+  RUN_TEST(test_parse_chold_decimal_duration_and_comma);
+  RUN_TEST(test_parse_chold_bare_is_not_the_command);
+  RUN_TEST(test_parse_chold_garbage_is_invalid);
 }

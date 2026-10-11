@@ -725,7 +725,7 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
       curveNote: document.getElementById("curveNote")
     };
 
-    let lastSelftestChecksJson = "";
+    let lastSelftestChecksKey = "";
     const selftestStatusLabel = {
       "OK": "stOk",
       "WARN": "stWarn",
@@ -760,8 +760,12 @@ const char INDEX_HTML[] PROGMEM = R"HTML(
         : t("faultNone");
 
       const checksJson = JSON.stringify(selftest.checks);
-      if (checksJson !== lastSelftestChecksJson) {
-        lastSelftestChecksJson = checksJson;
+      // #95: the cache key includes the LOCALE - the checks JSON itself
+      // is locale-neutral, so without this a lang switch left the rows
+      // in the old language (bench-found via the vision+DOM cross-check).
+      const checksKey = locale + ":" + checksJson;
+      if (checksKey !== lastSelftestChecksKey) {
+        lastSelftestChecksKey = checksKey;
         statusFields.selftestChecks.innerHTML = "";
         selftest.checks.forEach((check) => {
           const row = document.createElement("li");

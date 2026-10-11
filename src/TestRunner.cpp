@@ -80,6 +80,11 @@ bool TestRunner::startHold(float setpointN, float durationMin) {
   holdHomingDone_ = homed_;  // #81 analogue: keep a datum from this cycle
   holdOriginSet_ = false;
   lastSampleMs_ = 0;
+  // #220 follow-up: prime the glitch median with the live force - never
+  // median against a previous run's stale samples.
+  holdForceWindow_[0] = holdForceWindow_[1] = holdForceWindow_[2] =
+      loadcell_.rawForceNewton();
+  holdForceIndex_ = 0;
   if (!homed_) {
     // FR-007: the M3 homing FSM, standalone; its Done sets
     // holdHomingDone_ (handleHomingTransition).
@@ -193,9 +198,23 @@ void TestRunner::tickHold(unsigned long nowMs) {
   }
   lastSampleMs_ = nowMs;
 
+  // #220 follow-up: the bench cell produced single-sample spikes of
+  // -63 .. -1362 N while stationary (three in one session). The hold
+  // brain must not read a glitch as contact evidence or a collapse -
+  // median-of-3 over the raw reads rejects 1-2 sample transients while
+  // passing any real 10 Hz signal (contact mechanics are far slower).
+  // The M3 tensile path is deliberately UNTOUCHED (behavior-preserving).
+  holdForceWindow_[holdForceIndex_ % 3] = loadcell_.rawForceNewton();
+  holdForceIndex_++;
+  const float a = holdForceWindow_[0];
+  const float b = holdForceWindow_[1];
+  const float c = holdForceWindow_[2];
+  const float median = a < b ? (b < c ? b : (a < c ? c : a))
+                             : (a < c ? a : (b < c ? c : b));
+
   HoldController::Inputs in{};
   in.homedDone = holdHomingDone_;
-  in.forceN = loadcell_.rawForceNewton();
+  in.forceN = median;
   in.positionMm = motion_.positionMm();
   in.endstopBottom = endstops_.bottom();
   in.endstopTop = endstops_.top();

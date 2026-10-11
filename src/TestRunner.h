@@ -189,6 +189,8 @@ class TestRunner {
   bool holdReportValid_ = false;
   HoldController::End holdEnd_ = HoldController::End::None;
   HoldController::Report holdReport_{};
+  float holdForceWindow_[3] = {0.0f, 0.0f, 0.0f};  // #220 glitch median
+  uint8_t holdForceIndex_ = 0;
   bool breakDetected_ = false;
   float breakPositionMm_ = 0.0f;
   float runPeakForceN_ = 0.0f;  // run record; see peakForceN() note

@@ -684,12 +684,25 @@ bool Commands::execute(String command, String &response, ErrorCode &error,
       case HomePhase::Done: phaseName = "Done"; break;
       case HomePhase::Fault: phaseName = "Fault"; break;
     }
-    char tel[64];
-    snprintf(tel, sizeof(tel), "E1:%d E2:%d HP:%s HF:%d HS:%s",
+    char tel[96];
+    // M4: HOP = hold phase (permanent bench telemetry - the temp-hook
+    // lesson: hold state MUST be observable; T007 also consumes it).
+    const char *holdName = "?";
+    switch (testRunner_.holdPhase()) {
+      case HoldController::Phase::Idle: holdName = "Idle"; break;
+      case HoldController::Phase::Homing: holdName = "Homing"; break;
+      case HoldController::Phase::Approach: holdName = "Approach"; break;
+      case HoldController::Phase::Holding: holdName = "Holding"; break;
+      case HoldController::Phase::Done: holdName = "Done"; break;
+      case HoldController::Phase::Limit: holdName = "Limit"; break;
+      case HoldController::Phase::Lost: holdName = "Lost"; break;
+      case HoldController::Phase::Aborted: holdName = "Aborted"; break;
+    }
+    snprintf(tel, sizeof(tel), "E1:%d E2:%d HP:%s HF:%d HS:%s HOP:%s",
              testRunner_.endstopBottom() ? 1 : 0,
              testRunner_.endstopTop() ? 1 : 0, phaseName,
              static_cast<int>(testRunner_.homing().fault()),
-             TestCycleModel::name(testRunner_.testState()));
+             TestCycleModel::name(testRunner_.testState()), holdName);
     response = tel;
     return true;
   }

@@ -5,7 +5,7 @@
     "unconnected": 0
   },
   "erc_violations": 0,
-  "parity": 44,
+  "parity": 4,
   "counts": {
     "footprints": 25,
     "pads": 120,
@@ -13,5 +13,5 @@
     "format": "20260206"
   },
   "bom_sha": "23fb67b8d4207b4460cc49142c0edeb20e59cecabc64359bb511188863ab5bcc",
-  "gerber_sha": "5da31efb0c9c60c7958052a183698053db3753a7b06004d5f93be1e703d72e57"
+  "gerber_sha": "4bcb79f175ebf8c58cd29ba867bab1f6021a29426764ea764b79e5babbdf44b6"
 }

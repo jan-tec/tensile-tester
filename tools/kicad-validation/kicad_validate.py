@@ -30,7 +30,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 DEFAULT_HW = REPO / "hardware" / "mainboard-atlas"
-FAB_LAYERS = "F.Cu B.Cu F.Mask B.Mask F.Silkscreen B.Silkscreen Edge_Cuts"
+FAB_LAYERS = "F.Cu,B.Cu,F.Mask,B.Mask,F.Silkscreen,B.Silkscreen,Edge.Cuts"  # comma-separated; Edge.Cuts (dot) is the CLI token
 
 
 def cli(*args) -> subprocess.CompletedProcess:
@@ -96,6 +96,9 @@ def gerber_sha(pcb: Path, workdir: Path) -> str:
     r2 = cli("pcb", "export", "drill", "--output", str(g / "drill"), str(pcb))
     if r.returncode != 0 or r2.returncode != 0:
         sys.exit(f"tooling failure: plot exit={r.returncode}/{r2.returncode}")
+    plotted = [f for f in g.rglob("*") if f.is_file() and f.suffix != ".gbrjob"]
+    if not plotted:  # empty plot set would silently hash to a constant
+        sys.exit("tooling failure: gerber export produced no layer files")
     blob = []
     for f in sorted(g.rglob("*")):
         if not f.is_file() or f.suffix == ".gbrjob":  # job = metadata, not geometry

@@ -42,8 +42,8 @@ As a reviewer, the whole change is proven by the fingerprint ledger: one
 explained drift, one deliberate re-baseline.
 
 - Given the pre-fix baseline, When the fix is applied, Then the ledger is RED
-  on exactly `gerber_sha` and `parity` (expected drift) and ok on `drc`,
-  `erc`, `counts`.
+  on exactly `parity` and `gerber_sha` (silk text changes) and ok on `drc`,
+  `erc`, `counts` (`bom_sha` comes from the untouched schematic).
 - After re-baseline, the ledger is GREEN and the diff to the old baseline
   shows only the two expected fields.
 
@@ -62,7 +62,17 @@ explained drift, one deliberate re-baseline.
   text, so the fix also cleans future spins' silk.
 - **FR-003:** The four `REF**` mounting holes (MountingHole_3.2mm_M3) become
   `H1..H4` (order: top-left, top-right, bottom-left, bottom-right) with
-  `exclude_from_bom` and `exclude_from_pos_files` attributes set.
+  `exclude_from_bom` and `exclude_from_pos_files` attributes set
+  (measured: the attributes were already present; parity has no board-side
+  suppression - the 4 mount-hole `extra_footprint` findings remain).
+- **FR-007 (amendment, measured 2026-10-13):** Align the 16 board-side
+  `Datasheet "~"` fields to the schematic's empty value (these 16
+  `footprint_symbol_field_mismatch` findings were masked by the ref chaos
+  and exposed by the rename).
+- **FR-008 (amendment, measured 2026-10-13):** One `//` corruption sits on
+  the **board** side: footprint `J1` Value field `J1 // 24V IN`; the
+  schematic symbol value is clean (`Screw_Terminal_01x02`). Align the board
+  value to the schematic. No schematic edit is required anywhere.
 - **FR-004:** Electrical content is frozen: no net, track, pad, zone, via,
   layer or footprint-position change; `counts` fingerprint items
   (footprints/pads/uuid tokens/format) stay byte-identical.
@@ -76,7 +86,8 @@ explained drift, one deliberate re-baseline.
 - Tooling: scripted s-expression edits only (headless, reproducible); the
   kicad-cli validation gate is the test oracle - every task states its
   expected ledger/DRC delta before execution (EXPECT-before-run discipline).
-- Schematic is not edited at all (it is already the naming authority).
+- Schematic is not edited at all (FR-008 resolved: the `J1` corruption was on
+  the board side).
 - KiCad 10.0.7 / `kicad-cli` only for validation; no GUI steps.
 
 ### Non-Functional
@@ -86,9 +97,9 @@ explained drift, one deliberate re-baseline.
 
 ## Success Criteria
 
-1. `kicad_validate.py` GREEN against the new baseline; `parity == 0`
-   (or only mount-hole findings if KiCad 10 parity ignores exclude flags -
-   measured at implementation, max 4, all mounting-hole).
+1. `kicad_validate.py` GREEN against the new baseline; `parity == 4` and all
+   four findings are the `extra_footprint` mount holes (measured: KiCad 10
+   parity has no suppression flag for board-only footprints).
 2. DRC fingerprint unchanged: 0 errors / 2 warnings / 0 unconnected.
 3. Netlist pin->net membership identical before/after (scripted diff).
 4. Ledger shows exactly 2 drifted fields between old and new baseline

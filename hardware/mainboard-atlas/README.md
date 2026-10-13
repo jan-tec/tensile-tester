@@ -22,6 +22,9 @@ load-cell connectors, 24 V -> 5 V / 3.3 V power.
 
 ## Provenance
 
+- Board silkscreen stamp: `Mainboard v1.0 // 07/2026 // Jan Wegener`
+  (v1.0, matches the July 2026 fab run). Title/company metadata:
+  "Mainboard ATLAS" by JanTec Engineering.
 - Imported 2026-10-10 from the designer's KiCad 9 project.
 - Re-saved 2026-10-13 with KiCad 10.0.7 (format 20260206); DRC fingerprint
   unchanged by the migration.

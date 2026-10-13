@@ -34,11 +34,14 @@ load-cell connectors, 24 V -> 5 V / 3.3 V power.
 
 ## Known issues (imported legacy)
 
-- Schematic <-> board annotation drift (44 parity findings): mounting holes are
-  unannotated `REF**`, several refs carry their value (`C1 // 100µF`), and
-  connectors were renumbered on the board (schematic J4-J6 vs board
-  J2/J3/ENDSTOP1/2). Netlist and connectivity are correct; the refdes
-  bookkeeping is what drifted.
+- ~~Schematic <-> board annotation drift~~ **fixed 2026-10-13 (H1, spec
+  `specs/H1-atlas-annotation-debt/`)**: board adopted the schematic references
+  (J4/HX1/TMC1/TMC2, `//`-corrupted refs cleaned, mounting holes named
+  H1..H4). Remaining parity findings: 4 `extra_footprint` entries for the
+  board-only mounting holes (KiCad 10 has no suppression for those).
+  Caveat: the built rev-1 boards carry the old corrupt silks
+  (`C6 // 100nF`, `J1 // 24V IN`); only a re-spin prints the clean text -
+  `gerber/` stays frozen as the as-built package.
 - The 2 DRC warnings are the TMC2209 Pololu module footprints not matching the
   current KiCad 10 standard-library copy.
 - Custom symbols/footprints carry no courtyard and no 3D models (they render
@@ -56,6 +59,7 @@ load-cell connectors, 24 V -> 5 V / 3.3 V power.
 | `Breakoutboard-Footprints.pretty/` | Custom footprints (ESP32 header, HX711 breakout) |
 | `fp-lib-table`, `sym-lib-table` | Library tables (`${KIPRJMOD}` relative refs) |
 | `gerber/` | Fab package of record (see Provenance) |
+| `validation-baseline.json` | Fingerprint ledger baseline (`tools/kicad-validation`) |
 | `img/` | Board renders (`kicad-cli pcb render`, see below) |
 
 ## Headless tooling (no GUI needed)

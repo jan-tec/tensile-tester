@@ -1,6 +1,6 @@
 # Feature Specification: H1 - ATLAS Annotation Debt Fix
 
-Status: Ready (dialog 2026-10-13) | Rigor: Spec-Anchored | Created: 2026-10-13 | Depends on: tools/kicad-validation ledger (#1279 dogfood)
+Status: Implemented (2026-10-13, ledger GREEN on re-baseline, branch test/kicad10) | Rigor: Spec-Anchored | Created: 2026-10-13 | Depends on: tools/kicad-validation ledger (#1279 dogfood)
 
 **Goal:** Eliminate the reference-annotation debt between
 `hardware/mainboard-atlas/` schematic and board so the schematic-parity

@@ -23,11 +23,16 @@ uv pip install --python kicad-venv/bin/python kicad-tools "kicad-python==0.7.1"
 ## Gate
 
 ```bash
-kicad-venv/bin/python tools/kicad-validation/kicad_validate.py
+python3 tools/kicad-validation/kicad_validate.py            # compare vs baseline
+python3 tools/kicad-validation/kicad_validate.py --update   # deliberate re-baseline (new spin only)
 ```
 
-Green = baseline DRC has 0 errors / 0 unconnected AND the kicad-tools
-round-trip is DRC-identical. Run it after any agent-driven board edit.
+Fingerprint ledger (`hardware/mainboard-atlas/validation-baseline.json`):
+DRC/ERC/parity counts, s-expr token counts, BOM hash, and a geometry-only
+Gerber replot hash (date/version lines and `.gbrjob` stripped - verified
+deterministic across runs). Any RED line must be explained by the edit that
+caused it; the gate was negative-control tested (mutant track -> RED).
+Only needs `kicad-cli` - CI-ready in the official `kicad/kicad-cli` image.
 
 ## IPC (live GUI) notes
 

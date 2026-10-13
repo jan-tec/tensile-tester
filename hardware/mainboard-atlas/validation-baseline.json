@@ -1,0 +1,17 @@
+{
+  "drc": {
+    "errors": 0,
+    "warnings": 2,
+    "unconnected": 0
+  },
+  "erc_violations": 0,
+  "parity": 44,
+  "counts": {
+    "footprints": 25,
+    "pads": 120,
+    "uuid_tokens": 1176,
+    "format": "20260206"
+  },
+  "bom_sha": "23fb67b8d4207b4460cc49142c0edeb20e59cecabc64359bb511188863ab5bcc",
+  "gerber_sha": "0039ca5138b666a484809fcb27bf4a5aac3f8e769bf7aa018ea8e8291c3d7fdb"
+}

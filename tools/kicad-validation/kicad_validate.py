@@ -37,15 +37,17 @@ def cli(*args) -> subprocess.CompletedProcess:
     return subprocess.run(["kicad-cli", *args], capture_output=True, text=True)
 
 
-def run(cmd: list[str]) -> subprocess.CompletedProcess:
-    return subprocess.run(cmd, capture_output=True, text=True)
+def fail(msg: str):
+    """Tooling failures exit 2 - distinct from drift (1), per docstring."""
+    print(msg, file=sys.stderr)
+    sys.exit(2)
 
 
 def drc_summary(pcb: Path, workdir: Path) -> dict:
     out = workdir / "drc.json"
     r = cli("pcb", "drc", "--severity-all", "--format", "json", "--output", str(out), str(pcb))
     if r.returncode != 0 or not out.exists():
-        sys.exit(f"tooling failure: pcb drc exit={r.returncode} {r.stderr[-200:]}")
+        fail(f"tooling failure: pcb drc exit={r.returncode} {r.stderr[-200:]}")
     d = json.loads(out.read_text())
     return {"errors": sum(1 for v in d["violations"] if v["severity"] == "error"),
             "warnings": sum(1 for v in d["violations"] if v["severity"] == "warning"),
@@ -56,7 +58,7 @@ def parity_count(pcb: Path, workdir: Path) -> int:
     out = workdir / "parity.json"
     r = cli("pcb", "drc", "--schematic-parity", "--format", "json", "--output", str(out), str(pcb))
     if r.returncode != 0 or not out.exists():
-        sys.exit(f"tooling failure: parity exit={r.returncode}")
+        fail(f"tooling failure: parity exit={r.returncode}")
     return len(json.loads(out.read_text())["schematic_parity"])
 
 
@@ -64,15 +66,18 @@ def erc_count(sch: Path, workdir: Path) -> int:
     out = workdir / "erc.json"
     r = cli("sch", "erc", "--format", "json", "--output", str(out), str(sch))
     if r.returncode != 0 or not out.exists():
-        sys.exit(f"tooling failure: erc exit={r.returncode}")
-    return len(json.loads(out.read_text())["sheets"][0].get("violations", []))
+        fail(f"tooling failure: erc exit={r.returncode}")
+    sheets = json.loads(out.read_text())["sheets"]  # sum all sheets, not just the first
+    return sum(len(s.get("violations", [])) for s in sheets)
 
 
 def counts(pcb: Path) -> dict:
     txt = pcb.read_text()
+    m = re.search(r"\(version (\d+)\)", txt)
+    if not m:  # truncated/foreign file -> tooling failure (2), not a traceback
+        fail(f"tooling failure: no (version NNNN) token in {pcb.name}")
     return {"footprints": txt.count("(footprint "), "pads": txt.count("(pad "),
-            "uuid_tokens": txt.count("(uuid "),
-            "format": re.search(r"\(version (\d+)\)", txt).group(1)}
+            "uuid_tokens": txt.count("(uuid "), "format": m.group(1)}
 
 
 def sha(data: bytes) -> str:
@@ -84,7 +89,7 @@ def bom_sha(sch: Path, workdir: Path) -> str:
     r = cli("sch", "export", "bom", "--fields", "Reference,Value",
             "--group-by", "Reference", "--output", str(out), str(sch))
     if r.returncode != 0 or not out.exists():
-        sys.exit(f"tooling failure: bom exit={r.returncode} {r.stderr[-200:]}")
+        fail(f"tooling failure: bom exit={r.returncode} {r.stderr[-200:]}")
     lines = sorted(l for l in out.read_text().splitlines() if l.strip())
     return sha("\n".join(lines).encode())
 
@@ -95,10 +100,10 @@ def gerber_sha(pcb: Path, workdir: Path) -> str:
     r = cli("pcb", "export", "gerbers", "--layers", FAB_LAYERS, "--output", str(g), str(pcb))
     r2 = cli("pcb", "export", "drill", "--output", str(g / "drill"), str(pcb))
     if r.returncode != 0 or r2.returncode != 0:
-        sys.exit(f"tooling failure: plot exit={r.returncode}/{r2.returncode}")
+        fail(f"tooling failure: plot exit={r.returncode}/{r2.returncode}")
     plotted = [f for f in g.rglob("*") if f.is_file() and f.suffix != ".gbrjob"]
     if not plotted:  # empty plot set would silently hash to a constant
-        sys.exit("tooling failure: gerber export produced no layer files")
+        fail("tooling failure: gerber export produced no layer files")
     blob = []
     for f in sorted(g.rglob("*")):
         if not f.is_file() or f.suffix == ".gbrjob":  # job = metadata, not geometry

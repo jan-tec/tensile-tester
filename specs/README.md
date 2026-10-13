@@ -14,6 +14,11 @@ plan.md = HOW, tasks.md = issue backlog). **One task = one issue = one PR.**
 | **M6** | Serial JSON API | done (2026-10-11, #185-#194) | M2, M3 | `specs/M6-serial-json-api/` |
 | **M7** | Web UI redesign | done (2026-10-10, #172/#173) | - | `specs/M7-web-ui-redesign/` |
 | **M8** | LED status language (GPIO2) | active | M1, M3, #76, #128 | `specs/M8-led-status/` |
+| **H1** | ATLAS annotation-debt fix (hardware) | done (2026-10-13, branch `test/kicad10`, pending merge) | `tools/kicad-validation` ledger | `specs/H1-atlas-annotation-debt/` |
+
+`H*` milestones target the hardware tree (`hardware/mainboard-atlas/`); their
+gate is the fingerprint ledger `tools/kicad-validation/kicad_validate.py`,
+not the pio test/build pair.
 
 ## Issue tracking
 

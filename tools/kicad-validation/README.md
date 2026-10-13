@@ -32,7 +32,9 @@ DRC/ERC/parity counts, s-expr token counts, BOM hash, and a geometry-only
 Gerber replot hash (date/version lines and `.gbrjob` stripped - verified
 deterministic across runs). Any RED line must be explained by the edit that
 caused it; the gate was negative-control tested (mutant track -> RED).
-Only needs `kicad-cli` - CI-ready in the official `kicad/kicad-cli` image.
+Needs only `kicad-cli` + `python3` (verified reproducible from a clean clone;
+CI-container usage not yet tried). Exit codes: 0 green, 1 drift, 2 tooling
+failure.
 
 ## IPC (live GUI) notes
 
